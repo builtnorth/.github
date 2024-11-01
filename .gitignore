@@ -1,0 +1,69 @@
+# Environment and Configuration
+.env
+.lando.yml
+
+# Package Managers
+vendor
+node_modules
+bower_components
+composer.lock
+package-lock.json
+yarn.lock
+yarn-error.log
+
+# Build and Compilation
+build
+dist
+
+# Root WP Directories
+/wordpress
+/wp
+
+# WordPress Content
+wp-content/*
+!wp-content/mu-plugins/
+!wp-content/themes/
+!wp-content/plugins/
+
+# Allow seeder db
+!db-seeder.sql
+
+# htaccess
+.htaccess
+
+# Logs and Backups
+*.log
+*.sql
+*.sql.gz
+db_backup.*
+
+
+# Editor and IDE Files
+*.esproj
+*.tmproj
+*.tmproject
+tmtags
+.*.sw[a-z]
+*.un~
+Session.vim
+*.swp
+.vscode
+*.code-workspace
+
+# OS Generated Files
+## Mac
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.thumbsdb
+
+## Windows
+Thumbs.db
+Desktop.ini
+
+# Miscellaneous
+.ftppass
+sftpCache.json

@@ -1,0 +1,94 @@
+name: Create WP Plugin Release
+
+on:
+    push:
+        tags:
+            - "*"
+
+permissions:
+    contents: write
+    packages: write
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+              with:
+                fetch-depth: 0  # Fetch all history for proper versioning
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@v2
+              with:
+                  php-version: "8.1"
+                  extensions: mbstring, xml, zip  # Common required extensions
+                  coverage: none  # Speeds up setup
+
+            - name: Validate composer.json
+              run: composer validate --strict
+
+            - name: Install Composer Dependencies
+              run: composer install --no-dev --optimize-autoloader --prefer-dist
+
+            - name: Run PHP Lint
+              run: find . -type f -name '*.php' -exec php -l {} \;
+
+            - name: Get Plugin Info
+              id: plugin
+              run: |
+                # Extract plugin slug from main plugin file
+                PLUGIN_SLUG=$(grep -m 1 "Plugin Name:" *.php | awk -F': ' '{print $2}' | tr -d '"' | tr '[:upper:]' '[:lower:]' | tr ' ' '-')
+                # Get version from tag
+                VERSION=${GITHUB_REF#refs/tags/}
+                # Set output variables
+                echo "slug=${PLUGIN_SLUG}" >> $GITHUB_OUTPUT
+                echo "version=${VERSION}" >> $GITHUB_OUTPUT
+                echo "filename=${PLUGIN_SLUG}-${VERSION}.zip" >> $GITHUB_OUTPUT
+
+            - name: Create ZIP
+              run: |
+                echo "Building ${{ steps.plugin.outputs.slug }} version ${{ steps.plugin.outputs.version }}"
+                
+                zip -r "${{ steps.plugin.outputs.filename }}" . \
+                -x "*.git*" \
+                -x "*.github*" \
+                -x "*.gitignore" \
+                -x "composer.*" \
+                -x "*.md" \
+                -x "tests/*" \
+                -x "phpunit.xml*" \
+                -x ".php-cs-fixer*" \
+                -x ".editorconfig" \
+                -x "phpstan.*" \
+                -x ".prettier*" \
+                -x "*.dist" \
+                -x "*.cache" \
+                -x ".vscode/*" \
+                -x ".idea/*" \
+                -x "node_modules/*" \
+                -x "assets/src/*" \
+                -x "bin/*" \
+                -x "scripts/*"
+
+            - name: Get Release Notes
+              id: release-notes
+              run: |
+                VERSION=${GITHUB_REF#refs/tags/}
+                # Extract release notes from CHANGELOG.md
+                awk "/## \[$VERSION\]/{flag=1;next}/## \[/{flag=0}flag" CHANGELOG.md > release_notes.txt
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  files: ${{ steps.plugin.outputs.filename }}
+                  name: "${{ steps.plugin.outputs.slug }} v${{ steps.plugin.outputs.version }}"
+                  body_path: release_notes.txt
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Upload Build Artifact
+              uses: actions/upload-artifact@v3
+              with:
+                name: ${{ steps.plugin.outputs.slug }}
+                path: ${{ steps.plugin.outputs.filename }}
+                retention-days: 5
