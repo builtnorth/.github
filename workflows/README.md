@@ -36,7 +36,7 @@ on:
 
 jobs:
   ci:
-    uses: builtnorth/basecamp-dev/.github/workflows/wp-plugin-ci.yml@main
+    uses: builtnorth/.github/workflows/wp-plugin-ci.yml@main
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 ```
@@ -55,7 +55,7 @@ on:
 
 jobs:
   release:
-    uses: builtnorth/basecamp-dev/.github/workflows/wp-plugin-release.yml@main
+    uses: builtnorth/.github/workflows/wp-plugin-release.yml@main
     with:
       version: ${{ inputs.version }}
     secrets:
@@ -76,7 +76,7 @@ on:
 
 jobs:
   test:
-    uses: builtnorth/basecamp-dev/.github/workflows/composer-package-ci.yml@main
+    uses: builtnorth/.github/workflows/composer-package-ci.yml@main
 ```
 
 ```yaml
@@ -90,7 +90,7 @@ on:
 
 jobs:
   release:
-    uses: builtnorth/basecamp-dev/.github/workflows/composer-package-release.yml@main
+    uses: builtnorth/.github/workflows/composer-package-release.yml@main
 ```
 
 ### NPM Package Example
@@ -107,7 +107,7 @@ on:
 
 jobs:
   ci:
-    uses: builtnorth/basecamp-dev/.github/workflows/npm-package-ci.yml@main
+    uses: builtnorth/.github/workflows/npm-package-ci.yml@main
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 ```
@@ -240,7 +240,7 @@ Creates releases and publishes NPM packages.
 Standardized PHP setup with caching.
 
 ```yaml
-- uses: builtnorth/basecamp-dev/.github/workflows/shared/setup-php@main
+- uses: builtnorth/.github/workflows/shared/setup-php@main
   with:
     php-version: '8.2'
     coverage: 'xdebug'
@@ -251,7 +251,7 @@ Standardized PHP setup with caching.
 Standardized Node.js setup with caching.
 
 ```yaml
-- uses: builtnorth/basecamp-dev/.github/workflows/shared/setup-node@main
+- uses: builtnorth/.github/workflows/shared/setup-node@main
   with:
     node-version: '20'
 ```
@@ -261,7 +261,7 @@ Standardized Node.js setup with caching.
 WordPress testing environment setup.
 
 ```yaml
-- uses: builtnorth/basecamp-dev/.github/workflows/shared/setup-wordpress@main
+- uses: builtnorth/.github/workflows/shared/setup-wordpress@main
   with:
     wordpress-version: 'latest'
     plugin-slug: 'my-plugin'
@@ -313,13 +313,13 @@ WordPress testing environment setup.
 For stability, you can pin to specific versions:
 
 ```yaml
-uses: builtnorth/basecamp-dev/.github/workflows/wp-plugin-ci.yml@v1.0.0
+uses: builtnorth/.github/workflows/wp-plugin-ci.yml@v1.0.0
 ```
 
 Or use the latest from main:
 
 ```yaml
-uses: builtnorth/basecamp-dev/.github/workflows/wp-plugin-ci.yml@main
+uses: builtnorth/.github/workflows/wp-plugin-ci.yml@main
 ```
 
 ## 🐛 Troubleshooting
