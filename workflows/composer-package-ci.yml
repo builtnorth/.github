@@ -1,0 +1,161 @@
+name: Reusable Composer Package CI
+
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        description: 'Package name (defaults to repository name)'
+        required: false
+        type: string
+        default: ''
+      php-versions:
+        description: 'PHP versions to test against'
+        required: false
+        type: string
+        default: '["8.1", "8.2", "8.3", "8.4"]'
+      run-coverage:
+        description: 'Run code coverage'
+        required: false
+        type: boolean
+        default: true
+      run-phpcs:
+        description: 'Run PHP CodeSniffer'
+        required: false
+        type: boolean
+        default: true
+      run-phpcompat:
+        description: 'Run PHP Compatibility check'
+        required: false
+        type: boolean
+        default: true
+      run-security-check:
+        description: 'Run security audit'
+        required: false
+        type: boolean
+        default: true
+      coverage-php-version:
+        description: 'PHP version for coverage report'
+        required: false
+        type: string
+        default: '8.3'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        php-version: ${{ fromJson(inputs.php-versions) }}
+    
+    name: PHP ${{ matrix.php-version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+          tools: composer:v2
+      
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+      
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+      
+      - name: Validate composer.json
+        run: composer validate --strict --no-check-lock
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+      
+      - name: Security check for vulnerabilities
+        if: inputs.run-security-check
+        run: composer audit --no-dev
+      
+      - name: Run PHPUnit tests
+        run: composer test
+      
+  coverage:
+    if: inputs.run-coverage
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.coverage-php-version }}
+          coverage: xdebug
+          tools: composer:v2
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+      
+      - name: Run PHPUnit with coverage
+        run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+      
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.coverage-php-version }}
+          coverage: none
+          tools: composer:v2
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+      
+      - name: Run PHPCS coding standards check
+        if: inputs.run-phpcs
+        run: composer lint
+      
+      - name: Check PHP compatibility
+        if: inputs.run-phpcompat
+        run: composer phpcompat
+
+  test-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [test, coverage, code-quality]
+    if: always()
+    
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.code-quality.result }}" == "success" ] && [ "${{ needs.coverage.result }}" == "success" ]; then
+            echo "✅ All checks passed!"
+            exit 0
+          else
+            echo "❌ Some checks failed!"
+            [ "${{ needs.test.result }}" != "success" ] && echo "  - Tests: Failed"
+            [ "${{ needs.coverage.result }}" != "success" ] && echo "  - Coverage: Failed"
+            [ "${{ needs.code-quality.result }}" != "success" ] && echo "  - Code Quality: Failed"
+            exit 1
+          fi

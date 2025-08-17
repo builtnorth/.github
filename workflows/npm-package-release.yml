@@ -1,0 +1,259 @@
+name: Reusable NPM Package Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.0.0) - used for manual dispatch'
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        type: boolean
+        default: false
+      package-name:
+        description: 'Package name (defaults to repository name)'
+        required: false
+        type: string
+        default: ''
+      node-version:
+        description: 'Node version to use for build'
+        required: false
+        type: string
+        default: '22'
+      publish-to-npm:
+        description: 'Publish to npm registry'
+        required: false
+        type: boolean
+        default: false
+      publish-to-github:
+        description: 'Publish to GitHub Packages'
+        required: false
+        type: boolean
+        default: true
+      use-workspace:
+        description: 'Use npm workspace setup'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN:
+        required: false
+      NPM_TOKEN:
+        required: false
+
+env:
+  PACKAGE_NAME: ${{ inputs.package-name || github.event.repository.name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Get version from tag or input
+        id: version
+        run: |
+          # Determine version from tag push or manual input
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"  # Remove v prefix
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            VERSION="${VERSION#v}"  # Remove v prefix if present
+          else
+            echo "Error: No version specified"
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION_TAG=v$VERSION" >> $GITHUB_OUTPUT
+          echo "PACKAGE_NAME=${{ env.PACKAGE_NAME }}" >> $GITHUB_OUTPUT
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Checkout parent repository for workspace
+        if: inputs.use-workspace
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ github.repository_owner }}/basecamp-dev
+          path: workspace-root
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Setup workspace and install dependencies
+        if: inputs.use-workspace
+        run: |
+          # Copy this package into the workspace structure
+          mkdir -p workspace-root/npm_packages
+          # Use rsync to exclude the workspace-root directory itself
+          rsync -av --exclude='workspace-root' --exclude='.git' . workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/
+
+          # Navigate to workspace root
+          cd workspace-root
+
+          # Install all dependencies (respects workspace)
+          npm ci
+
+      - name: Install dependencies (non-workspace)
+        if: '!inputs.use-workspace'
+        run: npm ci
+
+      - name: Build package
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}
+          fi
+          npm run build
+
+      - name: Prepare release package
+        run: |
+          # Work from the built package directory
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}
+          fi
+
+          # Create a release directory
+          mkdir -p release-package
+
+          # Copy necessary files
+          cp -r build release-package/
+          cp package.json release-package/
+          cp README.md release-package/ || true
+          cp LICENSE release-package/ || true
+
+          # Update package.json to point to built files
+          cd release-package
+          node -e "
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+
+          // Update main to point to built file
+          if (pkg.main && pkg.main.includes('src/')) {
+            pkg.main = pkg.main.replace('src/', 'build/');
+          }
+
+          // Ensure version matches tag
+          pkg.version = '${{ steps.version.outputs.VERSION }}';
+
+          fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+
+          # Create tarball
+          cd ..
+          tar -czf ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz -C release-package .
+
+      - name: Publish to npm registry
+        if: inputs.publish-to-npm
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
+          else
+            cd release-package
+          fi
+
+          # Configure npm for public registry
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+
+          # Publish
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        if: inputs.publish-to-github
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
+          else
+            cd release-package
+          fi
+
+          # Configure npm for GitHub Packages
+          echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}" >> .npmrc
+
+          # Publish
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+
+      - name: Create tag if not exists
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          # Check if tag exists
+          if git rev-parse ${{ steps.version.outputs.VERSION_TAG }} >/dev/null 2>&1; then
+            echo "Tag ${{ steps.version.outputs.VERSION_TAG }} already exists"
+          else
+            git tag -a ${{ steps.version.outputs.VERSION_TAG }} -m "Release ${{ steps.version.outputs.VERSION_TAG }}"
+            git push origin ${{ steps.version.outputs.VERSION_TAG }}
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+          
+          if [ -z "$PREVIOUS_TAG" ]; then
+            echo "No previous tag found, this is the first release"
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          
+          echo "Comparing changes from $PREVIOUS_TAG to HEAD"
+          
+          # Generate commits
+          COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch")
+          
+          # Save to output
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create Release with GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+        run: |
+          # Determine archive location
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            ARCHIVE_PATH="workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"
+          else
+            ARCHIVE_PATH="${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"
+          fi
+
+          # Create release
+          gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
+            --title "Release ${{ steps.version.outputs.VERSION_TAG }}" \
+            --notes "## ${{ steps.version.outputs.PACKAGE_NAME }} v${{ steps.version.outputs.VERSION }}
+
+            ### Installation
+
+            #### Via npm (from GitHub Packages):
+            \`\`\`bash
+            npm install @builtnorth/${{ steps.version.outputs.PACKAGE_NAME }}@${{ steps.version.outputs.VERSION }}
+            \`\`\`
+
+            #### Via package.json:
+            \`\`\`json
+            \"@builtnorth/${{ steps.version.outputs.PACKAGE_NAME }}\": \"${{ steps.version.outputs.VERSION }}\"
+            \`\`\`
+
+            ### What's included
+            - Compiled JavaScript (ES5)
+            - CSS styles (if applicable)
+            - Source maps for debugging
+
+            ### Changelog
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
+            
+            ### Full Changelog
+            [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.changelog.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})" \
+            ${{ inputs.prerelease && '--prerelease' || '' }} \
+            $ARCHIVE_PATH

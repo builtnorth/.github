@@ -1,0 +1,65 @@
+name: 'Setup WordPress for Built North'
+description: 'Setup WordPress testing environment with wp-env or traditional setup'
+inputs:
+  wordpress-version:
+    description: 'WordPress version to test against'
+    required: false
+    default: 'latest'
+  php-version:
+    description: 'PHP version to use'
+    required: false
+    default: '8.2'
+  use-wp-env:
+    description: 'Use wp-env for testing'
+    required: false
+    default: 'true'
+  plugin-slug:
+    description: 'Plugin slug for testing'
+    required: true
+  database-name:
+    description: 'Database name for tests'
+    required: false
+    default: 'wordpress_test'
+  database-user:
+    description: 'Database user'
+    required: false
+    default: 'root'
+  database-password:
+    description: 'Database password'
+    required: false
+    default: 'root'
+  database-host:
+    description: 'Database host'
+    required: false
+    default: '127.0.0.1:3306'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup wp-env
+      if: inputs.use-wp-env == 'true'
+      shell: bash
+      run: |
+        npm init -y
+        npm install @wordpress/env
+        npx wp-env start
+    
+    - name: Install WordPress test suite (traditional)
+      if: inputs.use-wp-env == 'false'
+      shell: bash
+      run: |
+        bash bin/install-wp-tests.sh \
+          ${{ inputs.database-name }} \
+          ${{ inputs.database-user }} \
+          ${{ inputs.database-password }} \
+          ${{ inputs.database-host }} \
+          ${{ inputs.wordpress-version }}
+    
+    - name: Verify WordPress installation
+      shell: bash
+      run: |
+        if [ "${{ inputs.use-wp-env }}" = "true" ]; then
+          npx wp-env run cli wp core version
+        else
+          echo "WordPress test suite installed for version: ${{ inputs.wordpress-version }}"
+        fi

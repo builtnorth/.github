@@ -1,0 +1,264 @@
+name: Reusable WordPress Plugin Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.0)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN:
+        required: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: false
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Get version from input
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          # Remove 'v' prefix if provided
+          VERSION="${VERSION#v}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "VERSION_TAG=v$VERSION" >> $GITHUB_OUTPUT
+          echo "PLUGIN_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_OUTPUT
+
+      - name: Update plugin version
+        run: |
+          # Update version in main plugin file
+          PLUGIN_FILE="${{ steps.version.outputs.PLUGIN_NAME }}.php"
+          sed -i "s/Version:\s*[0-9]\+\.[0-9]\+\.[0-9]\+/Version:           ${{ steps.version.outputs.VERSION }}/" $PLUGIN_FILE
+
+          # Update version constant if it exists
+          if grep -q "define.*VERSION" $PLUGIN_FILE; then
+              PLUGIN_CONST=$(echo "${{ steps.version.outputs.PLUGIN_NAME }}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+              sed -i "s/define.*${PLUGIN_CONST}_VERSION.*['\"][0-9]\+\.[0-9]\+\.[0-9]\+['\"]/define('${PLUGIN_CONST}_VERSION', '${{ steps.version.outputs.VERSION }}'/" $PLUGIN_FILE
+          fi
+
+          # Update version in composer.json if it has one
+          if [ -f composer.json ] && grep -q '"version"' composer.json; then
+              jq '.version = "${{ steps.version.outputs.VERSION }}"' composer.json > composer.tmp.json
+              mv composer.tmp.json composer.json
+          fi
+
+          # Update version in package.json if it exists
+          if [ -f package.json ]; then
+              npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+          fi
+
+      - name: Commit version updates
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+              git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
+              git push origin HEAD:${{ github.ref_name }}
+          fi
+
+      - name: Create and push tag
+        run: |
+          git tag -a ${{ steps.version.outputs.VERSION_TAG }} -m "Release ${{ steps.version.outputs.VERSION_TAG }}"
+          git push origin ${{ steps.version.outputs.VERSION_TAG }}
+
+          # Prevent the tag push from triggering another workflow run
+          echo "Tag created but workflow will continue to create release"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer:v2
+
+      - name: Configure Composer for private repos
+        env:
+          COMPOSER_AUTH: |
+            {
+                "github-oauth": {
+                    "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+                }
+            }
+        run: |
+          # Auth is configured via COMPOSER_AUTH env variable
+          echo "Composer auth configured via environment"
+
+      - name: Install production dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+                "github-oauth": {
+                    "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+                }
+            }
+        run: |
+          # Install production dependencies with optimizations
+          composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts
+
+      - name: Generate readme.txt
+        run: |
+          # Run the readme generation script if it exists
+          if [ -f "bin/generate-readme.php" ]; then
+              php bin/generate-readme.php
+              echo "readme.txt generated successfully"
+          fi
+
+      - name: Create plugin zip
+        run: |
+          # Create a directory for the plugin
+          mkdir -p ${{ steps.version.outputs.PLUGIN_NAME }}
+
+          # Determine which directories and files to include
+          INCLUDE_DIRS=""
+          [ -d "build" ] && INCLUDE_DIRS="$INCLUDE_DIRS build"
+          [ -d "parts" ] && INCLUDE_DIRS="$INCLUDE_DIRS parts"
+          [ -d "vendor" ] && INCLUDE_DIRS="$INCLUDE_DIRS vendor"
+          [ -d "inc" ] && INCLUDE_DIRS="$INCLUDE_DIRS inc"
+          [ -d "includes" ] && INCLUDE_DIRS="$INCLUDE_DIRS includes"
+          [ -d "assets" ] && INCLUDE_DIRS="$INCLUDE_DIRS assets"
+          [ -d "templates" ] && INCLUDE_DIRS="$INCLUDE_DIRS templates"
+          [ -d "languages" ] && INCLUDE_DIRS="$INCLUDE_DIRS languages"
+
+          # Copy only the production files we need
+          cp -r $INCLUDE_DIRS *.php composer.json composer.lock ${{ steps.version.outputs.PLUGIN_NAME }}/ 2>/dev/null || true
+          [ -f "README.md" ] && cp README.md ${{ steps.version.outputs.PLUGIN_NAME }}/
+          [ -f "readme.txt" ] && cp readme.txt ${{ steps.version.outputs.PLUGIN_NAME }}/
+          [ -f "LICENSE" ] && cp LICENSE ${{ steps.version.outputs.PLUGIN_NAME }}/
+
+          # Create the zip (src directory is not copied, so no need to exclude)
+          zip -r ${{ steps.version.outputs.PLUGIN_NAME }}.zip ${{ steps.version.outputs.PLUGIN_NAME }}/
+
+          # Clean up
+          rm -rf ${{ steps.version.outputs.PLUGIN_NAME }}
+
+          echo "Plugin zip created:"
+          ls -la *.zip
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+              echo "No previous tag found, this is the first release"
+              PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "Comparing changes from $PREVIOUS_TAG to ${{ github.ref_name }}"
+
+          # Generate commits
+          COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG".."${{ github.ref_name }}" | grep -v "Merge branch")
+
+          # Group commits by type
+          FEATURES=$(echo "$COMMITS" | grep -E "^- (feat|feature):" || true)
+          FIXES=$(echo "$COMMITS" | grep -E "^- (fix|bugfix):" || true)
+          DOCS=$(echo "$COMMITS" | grep -E "^- (docs|documentation):" || true)
+          REFACTOR=$(echo "$COMMITS" | grep -E "^- (refactor|refactoring):" || true)
+          TEST=$(echo "$COMMITS" | grep -E "^- (test|tests):" || true)
+          CHORE=$(echo "$COMMITS" | grep -E "^- (chore|build|ci):" || true)
+          OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|feature|fix|bugfix|docs|documentation|refactor|refactoring|test|tests|chore|build|ci):" || true)
+
+          # Build changelog
+          CHANGELOG=""
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG="${CHANGELOG}### Features\n${FEATURES}\n\n"
+          fi
+          if [ -n "$FIXES" ]; then
+            CHANGELOG="${CHANGELOG}### Bug Fixes\n${FIXES}\n\n"
+          fi
+          if [ -n "$DOCS" ]; then
+            CHANGELOG="${CHANGELOG}### Documentation\n${DOCS}\n\n"
+          fi
+          if [ -n "$REFACTOR" ]; then
+            CHANGELOG="${CHANGELOG}### Refactoring\n${REFACTOR}\n\n"
+          fi
+          if [ -n "$TEST" ]; then
+            CHANGELOG="${CHANGELOG}### Tests\n${TEST}\n\n"
+          fi
+          if [ -n "$CHORE" ]; then
+            CHANGELOG="${CHANGELOG}### Maintenance\n${CHORE}\n\n"
+          fi
+          if [ -n "$OTHER" ]; then
+            CHANGELOG="${CHANGELOG}### Other Changes\n${OTHER}\n\n"
+          fi
+
+          # Save to output
+          echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          
+          # Use EOF to handle multiline output
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          # Update CHANGELOG.md with the new version
+          if [ -f CHANGELOG.md ]; then
+              # Get today's date
+              TODAY=$(date +"%Y-%m-%d")
+              
+              # Replace [Unreleased] with the new version
+              sed -i "s/## \[Unreleased\]/## [${{ steps.version.outputs.VERSION }}] - $TODAY/" CHANGELOG.md
+              
+              # Add new [Unreleased] section at the top
+              sed -i "/^## \[${{ steps.version.outputs.VERSION }}\]/i\\## [Unreleased]\\n" CHANGELOG.md
+              
+              # Commit the changelog update
+              git add CHANGELOG.md
+              if ! git diff --cached --quiet; then
+                  git commit -m "docs: update CHANGELOG.md for v${{ steps.version.outputs.VERSION }}"
+                  git push origin HEAD:${{ github.ref_name }}
+              fi
+          fi
+
+      - name: Create Release with GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+        run: |
+          # Create release notes file
+          cat > release_notes.md << 'ENDOFNOTES'
+          ## What's Changed
+
+          ${{ steps.release_notes.outputs.CHANGELOG }}
+          ### Installation
+          1. Download `${{ steps.version.outputs.PLUGIN_NAME }}.zip`
+          2. Upload via WordPress admin → Plugins → Add New → Upload
+          3. Activate the plugin
+
+          ### Requirements
+          - WordPress 6.0+
+          - PHP 8.1+
+
+          ### Full Changelog
+          - [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})
+          - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed history
+          ENDOFNOTES
+
+          # Create release with notes from file
+          PRERELEASE_FLAG=""
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+              PRERELEASE_FLAG="--prerelease"
+          fi
+
+          gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
+            --title "${{ steps.version.outputs.VERSION_TAG }}" \
+            --notes-file release_notes.md \
+            $PRERELEASE_FLAG \
+            ${{ steps.version.outputs.PLUGIN_NAME }}.zip

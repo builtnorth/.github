@@ -1,0 +1,43 @@
+name: 'Setup Node.js for Built North'
+description: 'Setup Node.js with Built North-specific configuration'
+inputs:
+  node-version:
+    description: 'Node.js version to setup'
+    required: false
+    default: '20'
+  cache:
+    description: 'Package manager to cache'
+    required: false
+    default: 'npm'
+  cache-dependency-path:
+    description: 'Path to package-lock.json for caching'
+    required: false
+    default: ''
+  registry-url:
+    description: 'Registry URL for publishing'
+    required: false
+    default: ''
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: ${{ inputs.cache }}
+        cache-dependency-path: ${{ inputs.cache-dependency-path }}
+        registry-url: ${{ inputs.registry-url }}
+    
+    - name: Display Node.js and npm versions
+      shell: bash
+      run: |
+        echo "Node.js version: $(node --version)"
+        echo "npm version: $(npm --version)"
+    
+    - name: Configure npm for better performance
+      shell: bash
+      run: |
+        npm config set fund false
+        npm config set audit false
+        npm config set progress false

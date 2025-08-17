@@ -1,0 +1,318 @@
+name: Reusable NPM Package CI
+
+on:
+  workflow_call:
+    inputs:
+      package-name:
+        description: 'Package name (defaults to repository name)'
+        required: false
+        type: string
+        default: ''
+      node-versions:
+        description: 'Node versions to test against'
+        required: false
+        type: string
+        default: '["18", "20", "22"]'
+      build-command:
+        description: 'Build command'
+        required: false
+        type: string
+        default: 'build'
+      test-command:
+        description: 'Test command'
+        required: false
+        type: string
+        default: 'test'
+      lint-command:
+        description: 'Lint command'
+        required: false
+        type: string
+        default: 'lint'
+      type-check-command:
+        description: 'Type check command'
+        required: false
+        type: string
+        default: ''
+      run-tests:
+        description: 'Run tests'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Run linting'
+        required: false
+        type: boolean
+        default: true
+      run-build:
+        description: 'Run build'
+        required: false
+        type: boolean
+        default: true
+      run-type-check:
+        description: 'Run type checking'
+        required: false
+        type: boolean
+        default: false
+      use-workspace:
+        description: 'Use npm workspace setup'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN:
+        required: false
+
+env:
+  PACKAGE_NAME: ${{ inputs.package-name || github.event.repository.name }}
+
+jobs:
+  test:
+    if: inputs.run-tests
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ${{ fromJson(inputs.node-versions) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Checkout parent repository for workspace
+        if: inputs.use-workspace
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/basecamp-dev
+          path: workspace-root
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Setup workspace
+        if: inputs.use-workspace
+        run: |
+          # Copy this package into the workspace structure
+          mkdir -p workspace-root/npm_packages
+          rsync -av --exclude='workspace-root' --exclude='.git' . workspace-root/npm_packages/${{ env.PACKAGE_NAME }}/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.use-workspace && 'workspace-root/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root
+            npm ci
+          else
+            npm ci
+          fi
+
+      - name: Run tests
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
+          fi
+          npm run ${{ inputs.test-command }}
+
+  lint:
+    if: inputs.run-lint
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Checkout parent repository for workspace
+        if: inputs.use-workspace
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/basecamp-dev
+          path: workspace-root
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Setup workspace
+        if: inputs.use-workspace
+        run: |
+          # Copy this package into the workspace structure
+          mkdir -p workspace-root/npm_packages
+          rsync -av --exclude='workspace-root' --exclude='.git' . workspace-root/npm_packages/${{ env.PACKAGE_NAME }}/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.use-workspace && 'workspace-root/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root
+            npm ci
+          else
+            npm ci
+          fi
+
+      - name: Run linting
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
+          fi
+          npm run ${{ inputs.lint-command }}
+
+  type-check:
+    if: inputs.run-type-check && inputs.type-check-command != ''
+    name: Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Checkout parent repository for workspace
+        if: inputs.use-workspace
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/basecamp-dev
+          path: workspace-root
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Setup workspace
+        if: inputs.use-workspace
+        run: |
+          # Copy this package into the workspace structure
+          mkdir -p workspace-root/npm_packages
+          rsync -av --exclude='workspace-root' --exclude='.git' . workspace-root/npm_packages/${{ env.PACKAGE_NAME }}/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.use-workspace && 'workspace-root/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root
+            npm ci
+          else
+            npm ci
+          fi
+
+      - name: Run type checking
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
+          fi
+          npm run ${{ inputs.type-check-command }}
+
+  build:
+    if: inputs.run-build
+    name: Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Checkout parent repository for workspace
+        if: inputs.use-workspace
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/basecamp-dev
+          path: workspace-root
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+
+      - name: Setup workspace
+        if: inputs.use-workspace
+        run: |
+          # Copy this package into the workspace structure
+          mkdir -p workspace-root/npm_packages
+          rsync -av --exclude='workspace-root' --exclude='.git' . workspace-root/npm_packages/${{ env.PACKAGE_NAME }}/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ${{ inputs.use-workspace && 'workspace-root/package-lock.json' || 'package-lock.json' }}
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root
+            npm ci
+          else
+            npm ci
+          fi
+
+      - name: Build package
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
+          fi
+          npm run ${{ inputs.build-command }}
+
+      - name: Check for uncommitted changes
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
+          fi
+          if [[ -n $(git status --porcelain) ]]; then
+            echo "Build process created uncommitted changes:"
+            git status --porcelain
+            exit 1
+          fi
+
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [test, lint, type-check, build]
+    if: always()
+    
+    steps:
+      - name: Check results
+        run: |
+          # Check each job result, accounting for skipped jobs
+          SUCCESS=true
+          
+          if [ "${{ needs.test.result }}" != "success" ] && [ "${{ needs.test.result }}" != "skipped" ]; then
+            echo "❌ Tests: Failed"
+            SUCCESS=false
+          fi
+          
+          if [ "${{ needs.lint.result }}" != "success" ] && [ "${{ needs.lint.result }}" != "skipped" ]; then
+            echo "❌ Lint: Failed"
+            SUCCESS=false
+          fi
+          
+          if [ "${{ needs.type-check.result }}" != "success" ] && [ "${{ needs.type-check.result }}" != "skipped" ]; then
+            echo "❌ Type Check: Failed"
+            SUCCESS=false
+          fi
+          
+          if [ "${{ needs.build.result }}" != "success" ] && [ "${{ needs.build.result }}" != "skipped" ]; then
+            echo "❌ Build: Failed"
+            SUCCESS=false
+          fi
+          
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ All checks passed!"
+            exit 0
+          else
+            echo "Some checks failed!"
+            exit 1
+          fi

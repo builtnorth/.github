@@ -1,0 +1,44 @@
+name: 'Setup PHP for Built North'
+description: 'Setup PHP with Built North-specific configuration'
+inputs:
+  php-version:
+    description: 'PHP version to setup'
+    required: false
+    default: '8.2'
+  extensions:
+    description: 'PHP extensions to install'
+    required: false
+    default: 'dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql, mysqli, pdo_mysql, bcmath, soap, intl, gd, exif, iconv'
+  coverage:
+    description: 'Code coverage driver'
+    required: false
+    default: 'none'
+  tools:
+    description: 'Tools to install'
+    required: false
+    default: 'composer:v2'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        extensions: ${{ inputs.extensions }}
+        coverage: ${{ inputs.coverage }}
+        tools: ${{ inputs.tools }}
+    
+    - name: Get composer cache directory
+      if: contains(inputs.tools, 'composer')
+      id: composer-cache
+      shell: bash
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+    
+    - name: Cache composer dependencies
+      if: contains(inputs.tools, 'composer')
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: ${{ runner.os }}-composer-

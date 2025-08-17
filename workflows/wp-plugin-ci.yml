@@ -1,0 +1,329 @@
+name: Reusable WordPress Plugin CI
+
+on:
+  workflow_call:
+    inputs:
+      plugin-slug:
+        description: 'Plugin directory name (defaults to repository name)'
+        required: false
+        type: string
+        default: ''
+      php-versions:
+        description: 'PHP versions to test against'
+        required: false
+        type: string
+        default: '["8.1", "8.2"]'
+      wordpress-versions:
+        description: 'WordPress versions to test against'
+        required: false
+        type: string
+        default: '["6.6", "latest"]'
+      node-version:
+        description: 'Node version for building assets'
+        required: false
+        type: string
+        default: '20'
+      run-phpcs:
+        description: 'Run PHP CodeSniffer'
+        required: false
+        type: boolean
+        default: true
+      run-php-compatibility:
+        description: 'Run PHP Compatibility check'
+        required: false
+        type: boolean
+        default: true
+      run-unit-tests:
+        description: 'Run PHPUnit tests'
+        required: false
+        type: boolean
+        default: true
+      run-security-check:
+        description: 'Run security check'
+        required: false
+        type: boolean
+        default: true
+      run-release-check:
+        description: 'Run release readiness check on PRs'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN:
+        required: false
+
+env:
+  PLUGIN_SLUG: ${{ inputs.plugin-slug || github.event.repository.name }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php-lint:
+    name: PHP Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ${{ fromJson(inputs.php-versions) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          coverage: none
+
+      - name: PHP Lint
+        run: find . -name "*.php" -not -path "./vendor/*" -not -path "./node_modules/*" -print0 | xargs -0 -n1 -P8 php -l
+
+  php-tests:
+    if: inputs.run-unit-tests
+    name: PHP Tests
+    runs-on: ubuntu-latest
+    needs: php-lint
+    strategy:
+      matrix:
+        php-version: ${{ fromJson(inputs.php-versions) }}
+        wordpress-version: ${{ fromJson(inputs.wordpress-versions) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql, mysqli, pdo_mysql, bcmath, soap, intl, gd, exif, iconv
+          coverage: xdebug
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+              "github-oauth": {
+                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+              }
+            }
+        run: |
+          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer update --prefer-dist --no-progress
+
+      - name: Install and start wp-env
+        run: |
+          npm init -y
+          npm install @wordpress/env
+          npx wp-env start
+
+      - name: Run PHPUnit tests
+        run: |
+          # Run tests in the wp-env container with vendor directory from host
+          npx wp-env run tests-cli --env-cwd=/var/www/html/wp-content/plugins/${{ env.PLUGIN_SLUG }} ./vendor/bin/phpunit
+
+      - name: Upload coverage to Codecov
+        if: matrix.php-version == '8.1' && matrix.wordpress-version == 'latest'
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  phpcs:
+    if: inputs.run-phpcs
+    name: PHP Coding Standards
+    runs-on: ubuntu-latest
+    needs: php-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          coverage: none
+          tools: composer:v2, cs2pr
+
+      - name: Get composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+              "github-oauth": {
+                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+              }
+            }
+        run: |
+          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer update --prefer-dist --no-progress
+
+      - name: Run PHPCS
+        run: |
+          # Run PHPCS (suppress cs2pr error on empty output)
+          vendor/bin/phpcs --report=checkstyle | cs2pr || true
+
+  php-compatibility:
+    if: inputs.run-php-compatibility
+    name: PHP Compatibility Check
+    runs-on: ubuntu-latest
+    needs: php-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+              "github-oauth": {
+                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+              }
+            }
+        run: |
+          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer update --prefer-dist --no-progress
+
+      - name: Run PHP Compatibility check
+        run: |
+          # Check PHP compatibility with PHP 8.1+
+          vendor/bin/phpcs . --standard=PHPCompatibility --extensions=php --runtime-set testVersion 8.1- --ignore=vendor/,node_modules/,build/
+
+  security-check:
+    if: inputs.run-security-check
+    name: Security Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          coverage: none
+          tools: composer:v2
+
+      - name: Install Composer dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+              "github-oauth": {
+                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+              }
+            }
+        run: |
+          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer update --prefer-dist --no-progress
+
+      - name: Run security check for PHP dependencies
+        env:
+          COMPOSER_AUTH: |
+            {
+              "github-oauth": {
+                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+              }
+            }
+        run: |
+          composer require --dev roave/security-advisories:dev-latest
+          composer audit
+
+  release-check:
+    if: inputs.run-release-check && github.event_name == 'pull_request' && github.base_ref == 'main'
+    name: Release Readiness Check
+    runs-on: ubuntu-latest
+    needs: [php-tests, phpcs]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check version bump
+        run: |
+          # Check if version was bumped in main plugin file
+          git fetch origin main
+          PLUGIN_FILE="${PLUGIN_SLUG}.php"
+          if [ -f "$PLUGIN_FILE" ]; then
+            MAIN_VERSION=$(git show origin/main:$PLUGIN_FILE | grep -Po "Version:\s*\K[0-9.]+" || echo "0.0.0")
+            PR_VERSION=$(grep -Po "Version:\s*\K[0-9.]+" $PLUGIN_FILE || echo "0.0.0")
+            
+            if [ "$MAIN_VERSION" == "$PR_VERSION" ]; then
+              echo "::warning::Plugin version not bumped. Current version: $MAIN_VERSION"
+            else
+              echo "Version bumped from $MAIN_VERSION to $PR_VERSION"
+            fi
+          else
+            echo "::warning::Main plugin file $PLUGIN_FILE not found"
+          fi
+
+      - name: Check changelog
+        run: |
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "::warning::CHANGELOG.md not found - consider adding one"
+          else
+            echo "CHANGELOG.md found"
+          fi
+
+      - name: Check README
+        run: |
+          if [ ! -f "README.md" ] && [ ! -f "readme.txt" ]; then
+            echo "::warning::No README found - consider adding README.md or readme.txt"
+          else
+            echo "README found"
+          fi
