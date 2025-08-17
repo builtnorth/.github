@@ -99,6 +99,28 @@ jobs:
           # Auth is configured via COMPOSER_AUTH env variable
           echo "Composer auth configured via environment"
 
+      - name: Update composer.json for production
+        run: |
+          # Remove all repositories first
+          composer config --unset repositories || true
+
+          # Add Polaris as vcs repository
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+
+          # Add other common repositories
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+
+          # Update Polaris to use stable tagged version if it exists
+          if composer show builtnorth/polaris 2>/dev/null; then
+            composer require builtnorth/polaris "^2.0 || ^1.0" --no-update || true
+          fi
+
+          # Remove the version field that causes warnings
+          composer config --unset version || true
+
       - name: Install production dependencies
         env:
           COMPOSER_AUTH: |
@@ -108,7 +130,15 @@ jobs:
                 }
             }
         run: |
-          # Install production dependencies with optimizations
+          # Set production-optimized autoloader settings
+          composer config optimize-autoloader true
+          composer config classmap-authoritative true
+          composer config prepend-autoloader false
+
+          # Update dependencies to resolve version conflicts
+          composer update --no-scripts --no-interaction
+
+          # Now install production dependencies with optimizations
           composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts
 
       - name: Generate readme.txt
