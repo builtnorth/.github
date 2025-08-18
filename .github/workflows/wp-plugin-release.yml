@@ -113,8 +113,8 @@ jobs:
           composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
 
-          # Update Polaris to use stable tagged version if it exists
-          if composer show builtnorth/polaris 2>/dev/null; then
+          # Update Polaris to use stable tagged version if it's required
+          if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
             composer require builtnorth/polaris "^2.0 || ^1.0" --no-update || true
           fi
 
