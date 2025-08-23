@@ -69,14 +69,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
           restore-keys: ${{ runner.os }}-composer-
       
       - name: Validate composer.json
         run: composer validate --strict --no-check-lock
       
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Security check for vulnerabilities
         if: inputs.run-security-check
@@ -102,7 +102,7 @@ jobs:
           tools: composer:v2
       
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Run PHPUnit with coverage
         run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
@@ -130,7 +130,7 @@ jobs:
           tools: composer:v2
       
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress --no-interaction
+        run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Run PHPCS coding standards check
         if: inputs.run-phpcs
