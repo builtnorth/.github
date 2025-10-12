@@ -116,13 +116,26 @@ jobs:
                   composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
                   composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
 
-                  # Update Polaris to use stable tagged version if it's required
-                  if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
-                    composer require builtnorth/polaris "^2.0 || ^1.0" --no-update || true
-                  fi
+                   # Update Polaris to use stable tagged version if it's required
+                   if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
+                     composer require builtnorth/polaris "^2.0 || ^1.0" --no-update || true
+                   fi
 
-                  # Remove the version field that causes warnings
-                  composer config --unset version || true
+                   # Update other packages to stable versions if they exist
+                   if grep -q "builtnorth/polaris-ai" composer.json 2>/dev/null; then
+                     composer require builtnorth/polaris-ai "^0.0.1" --no-update || true
+                   fi
+
+                   if grep -q "builtnorth/job-dispatcher" composer.json 2>/dev/null; then
+                     composer require builtnorth/job-dispatcher "^0.0.1" --no-update || true
+                   fi
+
+                   if grep -q "builtnorth/instant-actions" composer.json 2>/dev/null; then
+                     composer require builtnorth/instant-actions "^0.0.1" --no-update || true
+                   fi
+
+                   # Remove the version field that causes warnings
+                   composer config --unset version || true
 
             - name: Install production dependencies
               env:
