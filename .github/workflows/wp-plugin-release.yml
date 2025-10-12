@@ -114,6 +114,7 @@ jobs:
                   composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
                   composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
                   composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+                  composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
 
                   # Update Polaris to use stable tagged version if it's required
                   if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
