@@ -80,10 +80,10 @@ jobs:
               run: |
                   # Remove @dev dependencies and path repositories for production release
                   if [ -f composer.json ]; then
-                    # Remove path-type repositories
-                    jq 'del(.repositories[] | select(.type == "path"))' composer.json > composer.tmp.json
+                    # Remove path-type repositories (only if repositories field exists)
+                    jq 'if .repositories then del(.repositories[] | select(.type == "path")) else . end' composer.json > composer.tmp.json
                     mv composer.tmp.json composer.json
-                    
+
                     # Remove @dev requirements
                     jq '.require = (.require | with_entries(select(.value != "@dev")))' composer.json > composer.tmp.json
                     mv composer.tmp.json composer.json
