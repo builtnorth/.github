@@ -215,7 +215,7 @@ jobs:
                   echo "Comparing changes from $PREVIOUS_TAG to ${{ github.ref_name }}"
 
                   # Generate commits
-                  COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG".."${{ github.ref_name }}" | grep -v "Merge branch")
+                  COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG".."${{ github.ref_name }}" | grep -v "Merge branch" || true)
 
                   # Group commits by type
                   FEATURES=$(echo "$COMMITS" | grep -E "^- (feat|feature):" || true)
