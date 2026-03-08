@@ -115,6 +115,7 @@ jobs:
                   composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
                   composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
                   composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+                  composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
 
                    # Update Polaris to use stable tagged version if it's required
                    if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
@@ -132,6 +133,10 @@ jobs:
 
                    if grep -q "builtnorth/instant-actions" composer.json 2>/dev/null; then
                      composer require builtnorth/instant-actions "^0.0.1" --no-update || true
+                   fi
+
+                   if grep -q "builtnorth/wp-portability" composer.json 2>/dev/null; then
+                     composer require builtnorth/wp-portability "^0.1" --no-update || true
                    fi
 
                    # Remove the version field that causes warnings
