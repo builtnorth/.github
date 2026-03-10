@@ -282,7 +282,7 @@ jobs:
 
             - name: Create Release with GitHub CLI
               env:
-                  GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
               run: |
                   # Create release notes file
                   cat > release_notes.md << 'ENDOFNOTES'
