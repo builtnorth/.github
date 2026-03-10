@@ -155,7 +155,7 @@ jobs:
                   # Set production-optimized autoloader settings
                   composer config optimize-autoloader true
                   composer config classmap-authoritative true
-                  composer config prepend-autoloader false
+                  composer config prepend-autoloader true
 
                   # Update dependencies to resolve version conflicts
                   composer update --no-scripts --no-interaction
