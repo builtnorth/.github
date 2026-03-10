@@ -116,6 +116,7 @@ jobs:
                   composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
                   composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
                   composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+                  composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
                   composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
                    # Update Polaris to use stable tagged version if it's required
