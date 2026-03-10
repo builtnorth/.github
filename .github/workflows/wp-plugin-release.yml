@@ -280,17 +280,16 @@ jobs:
                       fi
                   fi
 
-            - name: Create Release with GitHub CLI
+            - name: Create Release
               env:
-                  GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
               run: |
-                  # Create release notes file
-                  cat > release_notes.md << 'ENDOFNOTES'
-                  ## What's Changed
+                  # Build release body
+                  BODY="## What's Changed
 
                   ${{ steps.release_notes.outputs.CHANGELOG }}
                   ### Installation
-                  1. Download `${{ steps.version.outputs.PLUGIN_NAME }}.zip`
+                  1. Download \`${{ steps.version.outputs.PLUGIN_NAME }}.zip\`
                   2. Upload via WordPress admin → Plugins → Add New → Upload
                   3. Activate the plugin
 
@@ -300,17 +299,28 @@ jobs:
 
                   ### Full Changelog
                   - [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})
-                  - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed history
-                  ENDOFNOTES
+                  - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed history"
 
-                  # Create release with notes from file
                   PRERELEASE_FLAG=""
                   if [ "${{ inputs.prerelease }}" = "true" ]; then
                       PRERELEASE_FLAG="--prerelease"
                   fi
 
-                  gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
-                    --title "${{ steps.version.outputs.VERSION_TAG }}" \
-                    --notes-file release_notes.md \
-                    $PRERELEASE_FLAG \
-                    ${{ steps.version.outputs.PLUGIN_NAME }}.zip
+                  # Delete existing release if present (ignore errors)
+                  gh release delete "${{ steps.version.outputs.VERSION_TAG }}" --yes 2>/dev/null || true
+
+                  # Create release using API to avoid the existence check 403
+                  gh api repos/${{ github.repository }}/releases \
+                    --method POST \
+                    -f tag_name="${{ steps.version.outputs.VERSION_TAG }}" \
+                    -f name="${{ steps.version.outputs.VERSION_TAG }}" \
+                    -f body="$BODY" \
+                    -F prerelease=${{ inputs.prerelease || false }} \
+                    --jq '.upload_url' > upload_url.txt
+
+                  # Upload the zip asset
+                  RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/${{ steps.version.outputs.VERSION_TAG }} --jq '.id')
+                  gh api repos/${{ github.repository }}/releases/${RELEASE_ID}/assets?name=${{ steps.version.outputs.PLUGIN_NAME }}.zip \
+                    --method POST \
+                    -H "Content-Type: application/zip" \
+                    --input ${{ steps.version.outputs.PLUGIN_NAME }}.zip
