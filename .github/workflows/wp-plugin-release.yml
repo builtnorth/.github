@@ -284,26 +284,6 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
               run: |
-                  # Create release notes file
-                  cat > release_notes.md << 'ENDOFNOTES'
-                  ## What's Changed
-
-                  ${{ steps.release_notes.outputs.CHANGELOG }}
-                  ### Installation
-                  1. Download `${{ steps.version.outputs.PLUGIN_NAME }}.zip`
-                  2. Upload via WordPress admin → Plugins → Add New → Upload
-                  3. Activate the plugin
-
-                  ### Requirements
-                  - WordPress 6.0+
-                  - PHP 8.1+
-
-                  ### Full Changelog
-                  - [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.release_notes.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})
-                  - See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed history
-                  ENDOFNOTES
-
-                  # Create release with notes from file
                   PRERELEASE_FLAG=""
                   if [ "${{ inputs.prerelease }}" = "true" ]; then
                       PRERELEASE_FLAG="--prerelease"
@@ -311,6 +291,6 @@ jobs:
 
                   gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
                     --title "${{ steps.version.outputs.VERSION_TAG }}" \
-                    --notes-file release_notes.md \
+                    --generate-notes \
                     $PRERELEASE_FLAG \
                     ${{ steps.version.outputs.PLUGIN_NAME }}.zip
