@@ -162,8 +162,18 @@ jobs:
                   # Remove lock file to force fresh resolution of all dependencies
                   rm -f composer.lock
 
-                  # Update dependencies to resolve version conflicts
-                  composer update --no-scripts --no-interaction
+                  # Show what composer.json looks like before resolution
+                  echo "=== composer.json repos ==="
+                  cat composer.json | jq '.repositories' 2>/dev/null || true
+                  echo "=== composer.json require ==="
+                  cat composer.json | jq '.require' 2>/dev/null || true
+
+                  # Update dependencies to resolve version conflicts (verbose for debugging)
+                  composer update --no-scripts --no-interaction -vvv 2>&1 | head -500 || true
+
+                  # Show what was resolved
+                  echo "=== Resolved versions ==="
+                  composer show --locked 2>/dev/null | grep builtnorth || true
 
                   # Now install production dependencies with optimizations
                   composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts
