@@ -122,7 +122,7 @@ jobs:
 
                    # Update Polaris to use latest stable tagged version if it's required
                    if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
-                     composer require builtnorth/polaris "^2.0.6" --no-update || true
+                     composer require builtnorth/polaris "^2.0.7" --no-update || true
                    fi
 
                    # Update other packages to stable versions if they exist
@@ -158,10 +158,6 @@ jobs:
                   composer config optimize-autoloader true
                   composer config classmap-authoritative true
                   composer config prepend-autoloader true
-
-                  # Allow packages with security advisories (svg-sanitize 0.20.0)
-                  # TODO: Update wp-baseline to use patched svg-sanitize version
-                  composer config audit.block-insecure false
 
                   # Remove lock file to force fresh resolution of all dependencies
                   rm -f composer.lock
