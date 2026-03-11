@@ -111,6 +111,7 @@ jobs:
                   composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
                   composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
                   composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+                  composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
                   composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
                   composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
                   composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
