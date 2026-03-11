@@ -131,11 +131,11 @@ jobs:
                    fi
 
                    if grep -q "builtnorth/job-dispatcher" composer.json 2>/dev/null; then
-                     composer require builtnorth/job-dispatcher ">=0.0.5" --no-update || true
+                     composer require builtnorth/job-dispatcher ">=0.0.7" --no-update || true
                    fi
 
                    if grep -q "builtnorth/instant-actions" composer.json 2>/dev/null; then
-                     composer require builtnorth/instant-actions ">=0.0.1" --no-update || true
+                     composer require builtnorth/instant-actions ">=0.0.3" --no-update || true
                    fi
 
                    if grep -q "builtnorth/wp-portability" composer.json 2>/dev/null; then
