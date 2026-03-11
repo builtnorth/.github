@@ -120,9 +120,9 @@ jobs:
                   composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
                   composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
-                   # Update Polaris to use stable tagged version if it's required
+                   # Update Polaris to use latest stable tagged version if it's required
                    if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
-                     composer require builtnorth/polaris "^2.0 || ^1.0" --no-update || true
+                     composer require builtnorth/polaris "^2.0.6" --no-update || true
                    fi
 
                    # Update other packages to stable versions if they exist
