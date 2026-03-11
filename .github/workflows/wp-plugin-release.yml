@@ -159,6 +159,9 @@ jobs:
                   composer config classmap-authoritative true
                   composer config prepend-autoloader true
 
+                  # Remove lock file to force fresh resolution of all dependencies
+                  rm -f composer.lock
+
                   # Update dependencies to resolve version conflicts
                   composer update --no-scripts --no-interaction
 
