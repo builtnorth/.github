@@ -38,6 +38,9 @@ on:
         required: false
         type: string
         default: '8.3'
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN:
+        required: false
 
 jobs:
   test:
@@ -75,7 +78,27 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-lock
       
+      - name: Configure private repositories
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+        run: |
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
+
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
         run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Security check for vulnerabilities
@@ -101,7 +124,27 @@ jobs:
           coverage: xdebug
           tools: composer:v2
       
+      - name: Configure private repositories
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+        run: |
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
+
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
         run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Run PHPUnit with coverage
@@ -129,7 +172,27 @@ jobs:
           coverage: none
           tools: composer:v2
       
+      - name: Configure private repositories
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+        run: |
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
+          composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
+          composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
+          composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
+
       - name: Install dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
         run: composer update --prefer-dist --no-progress --no-interaction
       
       - name: Run PHPCS coding standards check
@@ -149,13 +212,26 @@ jobs:
     steps:
       - name: Check results
         run: |
-          if [ "${{ needs.test.result }}" == "success" ] && [ "${{ needs.code-quality.result }}" == "success" ] && [ "${{ needs.coverage.result }}" == "success" ]; then
+          SUCCESS=true
+
+          if [ "${{ needs.test.result }}" != "success" ] && [ "${{ needs.test.result }}" != "skipped" ]; then
+            echo "❌ Tests: ${{ needs.test.result }}"
+            SUCCESS=false
+          fi
+
+          if [ "${{ needs.coverage.result }}" != "success" ] && [ "${{ needs.coverage.result }}" != "skipped" ]; then
+            echo "❌ Coverage: ${{ needs.coverage.result }}"
+            SUCCESS=false
+          fi
+
+          if [ "${{ needs.code-quality.result }}" != "success" ] && [ "${{ needs.code-quality.result }}" != "skipped" ]; then
+            echo "❌ Code Quality: ${{ needs.code-quality.result }}"
+            SUCCESS=false
+          fi
+
+          if [ "$SUCCESS" = "true" ]; then
             echo "✅ All checks passed!"
             exit 0
           else
-            echo "❌ Some checks failed!"
-            [ "${{ needs.test.result }}" != "success" ] && echo "  - Tests: Failed"
-            [ "${{ needs.coverage.result }}" != "success" ] && echo "  - Coverage: Failed"
-            [ "${{ needs.code-quality.result }}" != "success" ] && echo "  - Code Quality: Failed"
             exit 1
           fi

@@ -120,18 +120,21 @@ jobs:
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: |
-            {
-              "github-oauth": {
-                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-              }
-            }
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
-          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
           composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
           composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
       - name: Install and start wp-env
@@ -183,18 +186,21 @@ jobs:
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: |
-            {
-              "github-oauth": {
-                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-              }
-            }
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
-          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
           composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
           composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
       - name: Run PHPCS
@@ -221,18 +227,21 @@ jobs:
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: |
-            {
-              "github-oauth": {
-                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-              }
-            }
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
-          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
           composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
           composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
       - name: Run PHP Compatibility check
@@ -258,18 +267,21 @@ jobs:
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: |
-            {
-              "github-oauth": {
-                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-              }
-            }
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
-          # Repository already in composer.json, just need to add other dependencies
+          composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
+          composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
+          composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
+          composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
+          composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
+          composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
           composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
           composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
+          composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-          # Update dependencies (will fetch proper versions ignoring lock file)
+          composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
+          composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
       - name: Run security check for PHP dependencies
