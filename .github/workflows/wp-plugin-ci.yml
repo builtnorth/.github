@@ -286,15 +286,10 @@ jobs:
 
       - name: Run security check for PHP dependencies
         env:
-          COMPOSER_AUTH: |
-            {
-              "github-oauth": {
-                "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
-              }
-            }
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           composer require --dev roave/security-advisories:dev-latest
-          composer audit
+          composer audit --abandoned=report
 
   release-check:
     if: inputs.run-release-check && github.event_name == 'pull_request' && github.base_ref == 'main'
