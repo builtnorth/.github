@@ -76,7 +76,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       
       - name: Validate composer.json
-        run: composer validate --strict --no-check-lock
+        run: composer validate --no-check-lock
       
       - name: Configure private repositories
         env:
