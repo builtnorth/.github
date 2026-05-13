@@ -134,6 +134,7 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
@@ -200,6 +201,7 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
@@ -241,6 +243,7 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 
@@ -281,6 +284,7 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
           composer update --prefer-dist --no-progress
 

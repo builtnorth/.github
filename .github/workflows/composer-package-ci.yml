@@ -94,36 +94,37 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
       - name: Install dependencies
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
         run: composer update --prefer-dist --no-progress --no-interaction
-      
+
       - name: Security check for vulnerabilities
         if: inputs.run-security-check
         run: composer audit --no-dev --abandoned=report
-      
+
       - name: Run PHPUnit tests
         run: composer test
-      
+
   coverage:
     if: inputs.run-coverage
     name: Code Coverage
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ inputs.coverage-php-version }}
           coverage: xdebug
           tools: composer:v2
-      
+
       - name: Configure private repositories
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
@@ -140,38 +141,39 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
       - name: Install dependencies
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
         run: composer update --prefer-dist --no-progress --no-interaction
-      
+
       - name: Run PHPUnit with coverage
         run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
-      
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: ./coverage.xml
           flags: unittests
           fail_ci_if_error: false
-      
+
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ inputs.coverage-php-version }}
           coverage: none
           tools: composer:v2
-      
+
       - name: Configure private repositories
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
@@ -188,6 +190,7 @@ jobs:
           composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
           composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
+          composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
       - name: Install dependencies
