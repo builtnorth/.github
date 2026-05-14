@@ -139,7 +139,7 @@ jobs:
                    fi
 
                    if grep -q "builtnorth/wp-portability" composer.json 2>/dev/null; then
-                     composer require builtnorth/wp-portability "^0.1" --no-update || true
+                     composer require builtnorth/wp-portability "^0.2" --no-update || true
                    fi
 
                    # Remove the version field that causes warnings
