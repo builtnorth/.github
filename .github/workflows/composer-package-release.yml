@@ -89,6 +89,45 @@ jobs:
                     mv composer.tmp.json composer.json
                   fi
 
+            - name: Configure git for Composer VCS clones
+              if: hashFiles('composer.json') != ''
+              run: |
+                  TOKEN="${{ secrets.WORKFLOW_TOKEN || github.token }}"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
+
+            - name: Checkout shared release scripts
+              if: hashFiles('composer.json') != ''
+              uses: actions/checkout@v4
+              with:
+                  repository: builtnorth/.github
+                  ref: main
+                  path: _builtnorth-github
+                  token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
+
+            - name: Resolve and verify builtnorth composer dependencies
+              if: hashFiles('composer.json') != ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  COMPOSER_AUTH: |
+                      {
+                          "github-oauth": {
+                              "github.com": "${{ secrets.WORKFLOW_TOKEN || github.token }}"
+                          }
+                      }
+              run: |
+                  DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
+                  if [ -z "$DIRECT_PACKAGES" ]; then
+                    echo "No direct builtnorth production dependencies — skipping composer resolution check."
+                    exit 0
+                  fi
+
+                  bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
+                  rm -f composer.lock
+                  composer update --no-scripts --no-interaction --prefer-source
+                  bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
+                  rm -rf vendor composer.lock
+
             # Skip composer.json version update - version tracked via git tags only
             # This prevents merge conflicts between branches
 

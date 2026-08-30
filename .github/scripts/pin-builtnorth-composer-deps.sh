@@ -60,13 +60,24 @@ if [ "$MODE" = "pin" ]; then
 fi
 
 if [ "$MODE" = "verify" ]; then
-	if [ -z "$DIRECT_PACKAGES" ]; then
+	if [ ! -f composer.lock ]; then
+		echo "FAIL: composer.lock missing — cannot verify builtnorth dependency tree" >&2
+		exit 1
+	fi
+
+	# Verify every builtnorth package in the resolved tree, not only direct requires.
+	LOCKED_PACKAGES=$(composer show --locked --format=json 2>/dev/null \
+		| jq -r '(.locked // .installed // [])[] | select(.name | startswith("builtnorth/")) | .name' \
+		| sort -u)
+
+	if [ -z "$LOCKED_PACKAGES" ]; then
+		echo "No builtnorth packages in composer.lock."
 		exit 0
 	fi
 
 	failed=0
 
-	for pkg in $DIRECT_PACKAGES; do
+	for pkg in $LOCKED_PACKAGES; do
 		repo=$(package_to_repo "$pkg")
 		latest_tag=$(get_latest_stable_tag "$repo")
 
@@ -77,7 +88,7 @@ if [ "$MODE" = "verify" ]; then
 
 		locked_version=$(composer show --locked "$pkg" --format=json 2>/dev/null | jq -r '.version // empty')
 		if [ -z "$locked_version" ]; then
-			echo "FAIL: ${pkg} is required but not present in composer.lock" >&2
+			echo "FAIL: ${pkg} missing from composer.lock" >&2
 			failed=1
 			continue
 		fi
