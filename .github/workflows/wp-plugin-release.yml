@@ -127,7 +127,7 @@ jobs:
 
                    # Update Polaris to use latest stable tagged version if it's required
                    if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
-                     composer require builtnorth/polaris "^2.0.8" --no-update || true
+                     composer require builtnorth/polaris "^2.2" --no-update || true
                    fi
 
                    # Update other packages to stable versions if they exist
