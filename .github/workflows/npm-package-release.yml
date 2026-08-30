@@ -56,8 +56,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Get version from tag or input
         id: version
@@ -81,6 +79,12 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ inputs.node-version }}
+
+      - name: Configure GitHub Packages auth
+        run: |
+          echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
+          echo "@polaris:registry=https://npm.pkg.github.com" >> .npmrc
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -106,7 +110,12 @@ jobs:
 
       - name: Install dependencies (non-workspace)
         if: '!inputs.use-workspace'
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Build package
         run: |
@@ -180,12 +189,12 @@ jobs:
 
           # Configure npm for GitHub Packages
           echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
 
           # Publish
           npm publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
 
       - name: Create tag if not exists
         if: github.event_name == 'workflow_dispatch'
@@ -223,7 +232,7 @@ jobs:
 
       - name: Create Release with GitHub CLI
         env:
-          GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Determine archive location
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
