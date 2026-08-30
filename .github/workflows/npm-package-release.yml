@@ -136,6 +136,7 @@ jobs:
 
           # Copy necessary files
           cp -r build release-package/
+          cp -r src release-package/ 2>/dev/null || true
           cp package.json release-package/
           cp README.md release-package/ || true
           cp LICENSE release-package/ || true
