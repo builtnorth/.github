@@ -161,41 +161,6 @@ jobs:
           cd ..
           tar -czf ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz -C release-package .
 
-      - name: Publish to npm registry
-        if: inputs.publish-to-npm
-        run: |
-          if [ "${{ inputs.use-workspace }}" = "true" ]; then
-            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
-          else
-            cd release-package
-          fi
-
-          # Configure npm for public registry
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
-
-          # Publish
-          npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish to GitHub Packages
-        if: inputs.publish-to-github
-        run: |
-          if [ "${{ inputs.use-workspace }}" = "true" ]; then
-            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
-          else
-            cd release-package
-          fi
-
-          # Configure npm for GitHub Packages
-          echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
-
-          # Publish
-          npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
-
       - name: Create tag if not exists
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -270,3 +235,39 @@ jobs:
             [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.changelog.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})" \
             ${{ inputs.prerelease && '--prerelease' || '' }} \
             $ARCHIVE_PATH
+
+      - name: Publish to npm registry
+        if: inputs.publish-to-npm
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
+          else
+            cd release-package
+          fi
+
+          # Configure npm for public registry
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
+
+          # Publish
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to GitHub Packages
+        if: inputs.publish-to-github
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.use-workspace }}" = "true" ]; then
+            cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
+          else
+            cd release-package
+          fi
+
+          # Configure npm for GitHub Packages
+          echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ github.token }}" >> .npmrc
+
+          # Publish
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ github.token }}
