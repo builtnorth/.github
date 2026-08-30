@@ -98,6 +98,13 @@ jobs:
                   # Auth is configured via COMPOSER_AUTH env variable
                   echo "Composer auth configured via environment"
 
+            - name: Configure git for Composer VCS clones
+              run: |
+                  git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+                  git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+
             - name: Update composer.json for production
               run: |
                   # Remove all repositories first
