@@ -125,30 +125,20 @@ jobs:
                   composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
                   composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
 
-                   # Update Polaris to use latest stable tagged version if it's required
-                   if grep -q "builtnorth/polaris" composer.json 2>/dev/null; then
-                     composer require builtnorth/polaris "^2.2" --no-update || true
-                   fi
+                  # Remove the version field that causes warnings
+                  composer config --unset version || true
 
-                   # Update other packages to stable versions if they exist
-                   if grep -q "builtnorth/polaris-ai" composer.json 2>/dev/null; then
-                     composer require builtnorth/polaris-ai ">=0.0.1" --no-update || true
-                   fi
+            - name: Checkout shared release scripts
+              uses: actions/checkout@v4
+              with:
+                  repository: builtnorth/.github
+                  ref: main
+                  path: _builtnorth-github
 
-                   if grep -q "builtnorth/job-dispatcher" composer.json 2>/dev/null; then
-                     composer require builtnorth/job-dispatcher "^1.0" --no-update || true
-                   fi
-
-                   if grep -q "builtnorth/instant-actions" composer.json 2>/dev/null; then
-                     composer require builtnorth/instant-actions "^1.0" --no-update || true
-                   fi
-
-                   if grep -q "builtnorth/wp-portability" composer.json 2>/dev/null; then
-                     composer require builtnorth/wp-portability "^1.0" --no-update || true
-                   fi
-
-                   # Remove the version field that causes warnings
-                   composer config --unset version || true
+            - name: Pin builtnorth deps to latest GitHub releases
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
 
             - name: Install production dependencies
               env:
@@ -167,6 +157,8 @@ jobs:
                   # Remove lock file to force fresh resolution of all dependencies
                   rm -f composer.lock
 
+                  composer clear-cache
+
                   # Update dependencies to resolve version conflicts
                   composer update --no-scripts --no-interaction --prefer-source
 
@@ -176,6 +168,11 @@ jobs:
 
                   # Now install production dependencies with optimizations
                   composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-source
+
+            - name: Verify builtnorth deps match latest GitHub releases
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
 
             - name: Generate readme.txt
               run: |
