@@ -91,7 +91,7 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ github.token }}"
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
                           }
                       }
               run: |
@@ -100,10 +100,9 @@ jobs:
 
             - name: Configure git for Composer VCS clones
               run: |
-                  git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
-                  git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "git@github.com:"
-              env:
-                  GITHUB_TOKEN: ${{ github.token }}
+                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
 
             - name: Update composer.json for production
               run: |
