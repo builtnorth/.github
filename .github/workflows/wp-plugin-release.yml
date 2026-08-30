@@ -21,12 +21,12 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+            packages: read
 
         steps:
             - uses: actions/checkout@v3
               with:
                   submodules: false
-                  token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
             - name: Get version from input
               id: version
@@ -92,7 +92,7 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+                              "github.com": "${{ github.token }}"
                           }
                       }
               run: |
@@ -150,7 +150,7 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"
+                              "github.com": "${{ github.token }}"
                           }
                       }
               run: |
