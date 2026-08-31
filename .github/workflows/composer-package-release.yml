@@ -51,7 +51,7 @@ jobs:
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-                  token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+                  token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
 
             - name: Determine version
               id: version
