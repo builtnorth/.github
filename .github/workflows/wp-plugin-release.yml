@@ -138,7 +138,7 @@ jobs:
 
             - name: Pin builtnorth deps to latest GitHub releases
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
 
             - name: Install production dependencies
@@ -146,7 +146,7 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ github.token }}"
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
                           }
                       }
               run: |
@@ -172,7 +172,7 @@ jobs:
 
             - name: Verify builtnorth deps match latest GitHub releases
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
 
             - name: Generate readme.txt

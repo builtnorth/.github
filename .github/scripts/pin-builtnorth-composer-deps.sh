@@ -9,6 +9,10 @@ get_latest_stable_tag() {
 	local repo="$1"
 	local tag
 
+	if [ -z "${GH_TOKEN:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+		GH_TOKEN="$GITHUB_TOKEN"
+	fi
+
 	tag=$(gh release list --repo "${ORG}/${repo}" --limit 30 --json tagName,isLatest,isPrerelease \
 		-q '.[] | select(.isLatest and (.isPrerelease|not)) | .tagName' 2>/dev/null | head -1)
 
@@ -65,13 +69,11 @@ if [ "$MODE" = "verify" ]; then
 		exit 1
 	fi
 
-	# Verify every builtnorth package in the resolved tree, not only direct requires.
-	LOCKED_PACKAGES=$(composer show --locked --format=json 2>/dev/null \
-		| jq -r '(.locked // .installed // [])[] | select(.name | startswith("builtnorth/")) | .name' \
-		| sort -u)
+	# Production lock only — dev packages (e.g. coding-standards) are not bundled in releases.
+	LOCKED_PACKAGES=$(jq -r '.packages[]? | select(.name | startswith("builtnorth/")) | .name' composer.lock | sort -u)
 
 	if [ -z "$LOCKED_PACKAGES" ]; then
-		echo "No builtnorth packages in composer.lock."
+		echo "No builtnorth production packages in composer.lock."
 		exit 0
 	fi
 
@@ -86,9 +88,9 @@ if [ "$MODE" = "verify" ]; then
 			continue
 		fi
 
-		locked_version=$(composer show --locked "$pkg" --format=json 2>/dev/null | jq -r '.version // empty')
-		if [ -z "$locked_version" ]; then
-			echo "FAIL: ${pkg} missing from composer.lock" >&2
+		locked_version=$(jq -r --arg p "$pkg" '.packages[] | select(.name == $p) | .version' composer.lock)
+		if [ -z "$locked_version" ] || [ "$locked_version" = "null" ]; then
+			echo "FAIL: ${pkg} missing from composer.lock packages" >&2
 			failed=1
 			continue
 		fi
