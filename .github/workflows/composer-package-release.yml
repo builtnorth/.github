@@ -31,6 +31,8 @@ on:
         secrets:
             WORKFLOW_TOKEN:
                 required: false
+            POLARIS_PLUGIN_GITHUB_TOKEN:
+                required: false
 
 env:
     PACKAGE_NAME: ${{ inputs.package-name || github.event.repository.name }}
@@ -49,7 +51,7 @@ jobs:
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-                  token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
+                  token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
 
             - name: Determine version
               id: version
@@ -92,7 +94,7 @@ jobs:
             - name: Configure git for Composer VCS clones
               if: hashFiles('composer.json') != ''
               run: |
-                  TOKEN="${{ secrets.WORKFLOW_TOKEN || github.token }}"
+                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
 
@@ -103,16 +105,16 @@ jobs:
                   repository: builtnorth/.github
                   ref: main
                   path: _builtnorth-github
-                  token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
+                  token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
 
             - name: Resolve and verify builtnorth composer dependencies
               if: hashFiles('composer.json') != ''
               env:
-                  GH_TOKEN: ${{ github.token }}
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ secrets.WORKFLOW_TOKEN || github.token }}"
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
                           }
                       }
               run: |
