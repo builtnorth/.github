@@ -56,9 +56,55 @@ if [ "$MODE" = "pin" ]; then
 		fi
 
 		version=$(normalize_version "$tag")
-		echo "Pinning ${pkg} to latest stable release ${tag}"
-		composer require "${pkg}:${version}" --no-update --no-interaction
+		major_minor=$(echo "$version" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+		echo "Pinning ${pkg} to ^${major_minor} (latest stable release ${tag})"
+		composer require "${pkg}:^${major_minor}" --no-update --no-interaction
 	done
+
+	exit 0
+fi
+
+if [ "$MODE" = "verify-constraints" ]; then
+	if [ -z "$DIRECT_PACKAGES" ]; then
+		exit 0
+	fi
+
+	failed=0
+
+	for pkg in $DIRECT_PACKAGES; do
+		repo=$(package_to_repo "$pkg")
+		latest_tag=$(get_latest_stable_tag "$repo")
+
+		if [ -z "$latest_tag" ]; then
+			echo "WARNING: Cannot verify ${pkg} constraint — no stable GitHub release for ${ORG}/${repo}" >&2
+			continue
+		fi
+
+		constraint=$(jq -r --arg p "$pkg" '.require[$p] // empty' composer.json)
+		latest=$(normalize_version "$latest_tag")
+
+		if [ -z "$constraint" ]; then
+			echo "FAIL: ${pkg} missing from composer.json require" >&2
+			failed=1
+			continue
+		fi
+
+		tmp_json=$(mktemp)
+		cp composer.json "$tmp_json"
+		if ! composer require "${pkg}:${latest}" --no-update --no-interaction 2>/dev/null; then
+			echo "FAIL: ${pkg} constraint \"${constraint}\" does not allow latest stable v${latest}" >&2
+			failed=1
+			mv "$tmp_json" composer.json
+			continue
+		fi
+		mv "$tmp_json" composer.json
+		echo "OK: ${pkg} constraint \"${constraint}\" allows latest v${latest}"
+	done
+
+	if [ "$failed" -ne 0 ]; then
+		echo "Release blocked: composer.json constraints block latest builtnorth releases." >&2
+		exit 1
+	fi
 
 	exit 0
 fi

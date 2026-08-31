@@ -141,6 +141,21 @@ jobs:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
 
+            - name: Commit aligned composer constraints
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add composer.json
+                  if ! git diff --cached --quiet; then
+                    git commit -m "chore: align builtnorth composer constraints with latest releases"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Verify composer constraints allow latest releases
+              env:
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify-constraints
+
             - name: Install production dependencies
               env:
                   COMPOSER_AUTH: |
