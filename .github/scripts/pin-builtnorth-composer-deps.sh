@@ -33,6 +33,29 @@ normalize_version() {
 	echo "${1#v}"
 }
 
+register_builtnorth_vcs_repos() {
+	local repos=(
+		wp-baseline
+		wp-environment-indicator
+		wp-utility
+		extended-cpts-extras
+		wp-schema
+		wp-config
+		wp-portability
+		polaris
+		polaris-ai
+		polaris-controls
+		polaris-integrations-lib
+		job-dispatcher
+		instant-actions
+		coding-standards
+	)
+
+	for repo in "${repos[@]}"; do
+		composer config "repositories.${repo}" "vcs https://github.com/${ORG}/${repo}.git" 2>/dev/null || true
+	done
+}
+
 if [ ! -f composer.json ]; then
 	echo "No composer.json — skipping builtnorth dependency ${MODE}."
 	exit 0
@@ -45,6 +68,8 @@ if [ "$MODE" = "pin" ]; then
 		echo "No direct builtnorth dependencies to pin."
 		exit 0
 	fi
+
+	register_builtnorth_vcs_repos
 
 	for pkg in $DIRECT_PACKAGES; do
 		repo=$(package_to_repo "$pkg")
@@ -68,6 +93,8 @@ if [ "$MODE" = "verify-constraints" ]; then
 	if [ -z "$DIRECT_PACKAGES" ]; then
 		exit 0
 	fi
+
+	register_builtnorth_vcs_repos
 
 	failed=0
 
