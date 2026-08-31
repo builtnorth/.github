@@ -98,6 +98,13 @@ jobs:
                   # Auth is configured via COMPOSER_AUTH env variable
                   echo "Composer auth configured via environment"
 
+            - name: Checkout shared release scripts
+              uses: actions/checkout@v4
+              with:
+                  repository: builtnorth/.github
+                  ref: main
+                  path: _builtnorth-github
+
             - name: Configure git for Composer VCS clones
               run: |
                   TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
@@ -128,13 +135,6 @@ jobs:
 
                   # Remove the version field that causes warnings
                   composer config --unset version || true
-
-            - name: Checkout shared release scripts
-              uses: actions/checkout@v4
-              with:
-                  repository: builtnorth/.github
-                  ref: main
-                  path: _builtnorth-github
 
             - name: Pin builtnorth deps to latest GitHub releases
               env:

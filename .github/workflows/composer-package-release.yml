@@ -91,13 +91,6 @@ jobs:
                     mv composer.tmp.json composer.json
                   fi
 
-            - name: Configure git for Composer VCS clones
-              if: hashFiles('composer.json') != ''
-              run: |
-                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
-                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
-                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
-
             - name: Checkout shared release scripts
               if: hashFiles('composer.json') != ''
               uses: actions/checkout@v4
@@ -105,7 +98,14 @@ jobs:
                   repository: builtnorth/.github
                   ref: main
                   path: _builtnorth-github
-                  token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+                  token: ${{ github.token }}
+
+            - name: Configure git for Composer VCS clones
+              if: hashFiles('composer.json') != ''
+              run: |
+                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
 
             - name: Resolve and verify builtnorth composer dependencies
               if: hashFiles('composer.json') != ''
