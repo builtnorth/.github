@@ -280,6 +280,19 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
 
+            - name: Refresh Composer package index
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "POLARIS_PLUGIN_GITHUB_TOKEN not set; skip composer index"
+                    exit 0
+                  fi
+                  gh api --method POST repos/builtnorth/composer/dispatches --input - <<EOF
+                  {"event_type":"package-released","client_payload":{"package":"${{ env.COMPOSER_NAMESPACE }}","version":"${{ steps.version.outputs.version_number }}"}}
+                  EOF
+
             - name: Release summary
               if: success()
               run: |
