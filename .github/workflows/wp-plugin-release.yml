@@ -324,3 +324,16 @@ jobs:
                     --generate-notes \
                     $PRERELEASE_FLAG \
                     ${{ steps.version.outputs.PLUGIN_NAME }}.zip
+
+            - name: Refresh Composer plugin index
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "POLARIS_PLUGIN_GITHUB_TOKEN not set; skip composer index"
+                    exit 0
+                  fi
+                  gh api --method POST repos/builtnorth/composer/dispatches --input - <<EOF
+                  {"event_type":"plugin-released","client_payload":{"plugin":"${{ steps.version.outputs.PLUGIN_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
+                  EOF
