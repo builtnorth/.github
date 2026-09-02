@@ -52,7 +52,7 @@ register_builtnorth_vcs_repos() {
 	)
 
 	for repo in "${repos[@]}"; do
-		composer config "repositories.${repo}" "vcs https://github.com/${ORG}/${repo}.git" 2>/dev/null || true
+		composer config "repositories.${repo}" vcs "https://github.com/${ORG}/${repo}.git" 2>/dev/null || true
 	done
 }
 
