@@ -221,6 +221,15 @@ jobs:
                   [ -f "readme.txt" ] && cp readme.txt ${{ steps.version.outputs.PLUGIN_NAME }}/
                   [ -f "LICENSE" ] && cp LICENSE ${{ steps.version.outputs.PLUGIN_NAME }}/
 
+                  # Composer VCS-type installs leave the full .git history behind in
+                  # vendor/<package>/.git — strip it, it's not needed at runtime and
+                  # has bloated releases to 100+MB (too large for raw.githubusercontent.com
+                  # to serve, breaking the private Composer index's mirrored dist).
+                  find ${{ steps.version.outputs.PLUGIN_NAME }}/vendor -type d -name ".git" -prune -exec rm -rf {} + 2>/dev/null || true
+
+                  # Source maps are dev-only debugging artifacts, not needed in production.
+                  find ${{ steps.version.outputs.PLUGIN_NAME }}/build -type f -name "*.js.map" -delete 2>/dev/null || true
+
                   # Create the zip (src directory is not copied, so no need to exclude)
                   zip -r ${{ steps.version.outputs.PLUGIN_NAME }}.zip ${{ steps.version.outputs.PLUGIN_NAME }}/
 
