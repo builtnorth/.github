@@ -207,6 +207,7 @@ jobs:
                   INCLUDE_DIRS=""
                   [ -d "build" ] && INCLUDE_DIRS="$INCLUDE_DIRS build"
                   [ -d "parts" ] && INCLUDE_DIRS="$INCLUDE_DIRS parts"
+                  [ -d "lib" ] && INCLUDE_DIRS="$INCLUDE_DIRS lib"
                   [ -d "vendor" ] && INCLUDE_DIRS="$INCLUDE_DIRS vendor"
                   [ -d "inc" ] && INCLUDE_DIRS="$INCLUDE_DIRS inc"
                   [ -d "includes" ] && INCLUDE_DIRS="$INCLUDE_DIRS includes"
