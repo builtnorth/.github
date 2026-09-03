@@ -9,17 +9,13 @@ get_latest_stable_tag() {
 	local repo="$1"
 	local tag
 
-	if [ -z "${GH_TOKEN:-}" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
-		GH_TOKEN="$GITHUB_TOKEN"
-	fi
-
-	tag=$(gh release list --repo "${ORG}/${repo}" --limit 30 --json tagName,isLatest,isPrerelease \
-		-q '.[] | select(.isLatest and (.isPrerelease|not)) | .tagName' 2>/dev/null | head -1)
-
-	if [ -z "$tag" ]; then
-		tag=$(gh release list --repo "${ORG}/${repo}" --limit 10 --json tagName,isPrerelease \
-			-q '.[] | select(.isPrerelease|not) | .tagName' 2>/dev/null | head -1)
-	fi
+	# Use git ls-remote (not gh REST API) to avoid rate limits during release cascades.
+	tag=$(git ls-remote --tags "https://github.com/${ORG}/${repo}.git" 'v*' 2>/dev/null \
+		| sed 's/.*refs\/tags\///' \
+		| sed 's/\^{}//' \
+		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+		| sort -t. -k1.2n -k2n -k3n \
+		| tail -1)
 
 	echo "$tag"
 }

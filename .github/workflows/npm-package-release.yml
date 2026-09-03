@@ -163,18 +163,21 @@ jobs:
           tar -czf ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz -C release-package .
 
       - name: Create tag if not exists
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
         run: |
           # Configure git
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-          # Check if tag exists
-          if git rev-parse ${{ steps.version.outputs.VERSION_TAG }} >/dev/null 2>&1; then
-            echo "Tag ${{ steps.version.outputs.VERSION_TAG }} already exists"
+          TAG="${{ steps.version.outputs.VERSION_TAG }}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists locally"
+          elif git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on remote"
           else
-            git tag -a ${{ steps.version.outputs.VERSION_TAG }} -m "Release ${{ steps.version.outputs.VERSION_TAG }}"
-            git push origin ${{ steps.version.outputs.VERSION_TAG }}
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
           fi
 
       - name: Generate changelog
@@ -207,8 +210,18 @@ jobs:
             ARCHIVE_PATH="${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"
           fi
 
+          TAG="${{ steps.version.outputs.VERSION_TAG }}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — upload archive if missing, then exit"
+            if ! gh release view "$TAG" --json assets -q '.assets[].name' | grep -q "${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"; then
+              gh release upload "$TAG" "$ARCHIVE_PATH" --clobber
+            fi
+            exit 0
+          fi
+
           # Create release
-          gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
+          gh release create "$TAG" \
             --title "Release ${{ steps.version.outputs.VERSION_TAG }}" \
             --notes "## ${{ steps.version.outputs.PACKAGE_NAME }} v${{ steps.version.outputs.VERSION }}
 
