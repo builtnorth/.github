@@ -196,15 +196,19 @@ jobs:
           # Generate commits (allow empty result)
           COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
 
-          # Group commits by type
-          FEATURES=$(echo "$COMMITS" | grep -E "^- (feat|feature):" || true)
-          FIXES=$(echo "$COMMITS" | grep -E "^- (fix|bugfix):" || true)
-          DOCS=$(echo "$COMMITS" | grep -E "^- (docs|documentation):" || true)
-          STYLE=$(echo "$COMMITS" | grep -E "^- (style|formatting):" || true)
-          REFACTOR=$(echo "$COMMITS" | grep -E "^- (refactor|refactoring):" || true)
-          TEST=$(echo "$COMMITS" | grep -E "^- (test|tests):" || true)
-          CHORE=$(echo "$COMMITS" | grep -E "^- (chore|build|ci):" || true)
-          OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|feature|fix|bugfix|docs|documentation|style|formatting|refactor|refactoring|test|tests|chore|build|ci):" || true)
+          # Group commits by type. Matches plain (fix:), scoped (fix(auth):),
+          # and breaking (fix!:, fix(auth)!:) Conventional Commits forms — a bare
+          # type: with no scope support silently drops scoped commits into
+          # "Other Changes".
+          SCOPE='(\([^)]*\))?!?'
+          FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature)${SCOPE}:" || true)
+          FIXES=$(echo "$COMMITS" | grep -iE "^- (fix|bugfix)${SCOPE}:" || true)
+          DOCS=$(echo "$COMMITS" | grep -iE "^- (docs|documentation)${SCOPE}:" || true)
+          STYLE=$(echo "$COMMITS" | grep -iE "^- (style|formatting)${SCOPE}:" || true)
+          REFACTOR=$(echo "$COMMITS" | grep -iE "^- (refactor|refactoring)${SCOPE}:" || true)
+          TEST=$(echo "$COMMITS" | grep -iE "^- (test|tests)${SCOPE}:" || true)
+          CHORE=$(echo "$COMMITS" | grep -iE "^- (chore|build|ci)${SCOPE}:" || true)
+          OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|feature|fix|bugfix|docs|documentation|style|formatting|refactor|refactoring|test|tests|chore|build|ci)${SCOPE}:" || true)
 
           WHATS_CHANGED=""
           if [ -n "$FEATURES" ]; then
