@@ -77,6 +77,17 @@ jobs:
                   php-version: "8.2"
                   tools: composer:v2
 
+            - name: Get Composer cache directory
+              id: composer-cache
+              run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+            - name: Cache Composer packages
+              uses: actions/cache@v4
+              with:
+                  path: ${{ steps.composer-cache.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                  restore-keys: ${{ runner.os }}-composer-
+
             - name: Clean composer.json for production
               if: hashFiles('composer.json') != ''
               run: |
@@ -126,7 +137,10 @@ jobs:
 
                   bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
                   rm -f composer.lock
-                  composer update --no-scripts --no-interaction --prefer-source
+                  # --prefer-dist: this resolution is only for the verify check below
+                  # (vendor/ is deleted immediately after) — no reason to pay for a
+                  # full git clone of every dependency just to verify version pins.
+                  composer update --no-scripts --no-interaction --prefer-dist
                   bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
                   rm -rf vendor composer.lock
 
