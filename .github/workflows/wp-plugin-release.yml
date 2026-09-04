@@ -272,28 +272,33 @@ jobs:
                   OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|feature|fix|bugfix|docs|documentation|refactor|refactoring|test|tests|chore|build|ci):" || true)
 
                   # Build changelog
-                  CHANGELOG=""
+                  CHANGELOG="## What's Changed in ${{ steps.version.outputs.PLUGIN_NAME }} ${{ steps.version.outputs.VERSION_TAG }}"$'\n\n'
                   if [ -n "$FEATURES" ]; then
-                    CHANGELOG="${CHANGELOG}### Features\n${FEATURES}\n\n"
+                    CHANGELOG="${CHANGELOG}### Features"$'\n'"${FEATURES}"$'\n\n'
                   fi
                   if [ -n "$FIXES" ]; then
-                    CHANGELOG="${CHANGELOG}### Bug Fixes\n${FIXES}\n\n"
+                    CHANGELOG="${CHANGELOG}### Bug Fixes"$'\n'"${FIXES}"$'\n\n'
                   fi
                   if [ -n "$DOCS" ]; then
-                    CHANGELOG="${CHANGELOG}### Documentation\n${DOCS}\n\n"
+                    CHANGELOG="${CHANGELOG}### Documentation"$'\n'"${DOCS}"$'\n\n'
                   fi
                   if [ -n "$REFACTOR" ]; then
-                    CHANGELOG="${CHANGELOG}### Refactoring\n${REFACTOR}\n\n"
+                    CHANGELOG="${CHANGELOG}### Refactoring"$'\n'"${REFACTOR}"$'\n\n'
                   fi
                   if [ -n "$TEST" ]; then
-                    CHANGELOG="${CHANGELOG}### Tests\n${TEST}\n\n"
+                    CHANGELOG="${CHANGELOG}### Tests"$'\n'"${TEST}"$'\n\n'
                   fi
                   if [ -n "$CHORE" ]; then
-                    CHANGELOG="${CHANGELOG}### Maintenance\n${CHORE}\n\n"
+                    CHANGELOG="${CHANGELOG}### Maintenance"$'\n'"${CHORE}"$'\n\n'
                   fi
                   if [ -n "$OTHER" ]; then
-                    CHANGELOG="${CHANGELOG}### Other Changes\n${OTHER}\n\n"
+                    CHANGELOG="${CHANGELOG}### Other Changes"$'\n'"${OTHER}"$'\n\n'
                   fi
+                  if [ -z "$COMMITS" ]; then
+                    CHANGELOG="${CHANGELOG}No changes recorded since ${PREVIOUS_TAG}."$'\n\n'
+                  fi
+
+                  CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ steps.version.outputs.VERSION_TAG }}"
 
                   # Save to output
                   echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
@@ -336,9 +341,11 @@ jobs:
                       PRERELEASE_FLAG="--prerelease"
                   fi
 
+                  echo "${{ steps.release_notes.outputs.CHANGELOG }}" > release_notes.md
+
                   gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
                     --title "${{ steps.version.outputs.VERSION_TAG }}" \
-                    --generate-notes \
+                    --notes-file release_notes.md \
                     $PRERELEASE_FLAG \
                     ${{ steps.version.outputs.PLUGIN_NAME }}.zip
 

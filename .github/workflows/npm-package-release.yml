@@ -196,8 +196,49 @@ jobs:
           # Generate commits (allow empty result)
           COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
 
+          # Group commits by type
+          FEATURES=$(echo "$COMMITS" | grep -E "^- (feat|feature):" || true)
+          FIXES=$(echo "$COMMITS" | grep -E "^- (fix|bugfix):" || true)
+          DOCS=$(echo "$COMMITS" | grep -E "^- (docs|documentation):" || true)
+          STYLE=$(echo "$COMMITS" | grep -E "^- (style|formatting):" || true)
+          REFACTOR=$(echo "$COMMITS" | grep -E "^- (refactor|refactoring):" || true)
+          TEST=$(echo "$COMMITS" | grep -E "^- (test|tests):" || true)
+          CHORE=$(echo "$COMMITS" | grep -E "^- (chore|build|ci):" || true)
+          OTHER=$(echo "$COMMITS" | grep -vE "^- (feat|feature|fix|bugfix|docs|documentation|style|formatting|refactor|refactoring|test|tests|chore|build|ci):" || true)
+
+          WHATS_CHANGED=""
+          if [ -n "$FEATURES" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Features"$'\n'"${FEATURES}"$'\n\n'
+          fi
+          if [ -n "$FIXES" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Bug Fixes"$'\n'"${FIXES}"$'\n\n'
+          fi
+          if [ -n "$DOCS" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Documentation"$'\n'"${DOCS}"$'\n\n'
+          fi
+          if [ -n "$REFACTOR" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Refactoring"$'\n'"${REFACTOR}"$'\n\n'
+          fi
+          if [ -n "$TEST" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Tests"$'\n'"${TEST}"$'\n\n'
+          fi
+          if [ -n "$CHORE" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Maintenance"$'\n'"${CHORE}"$'\n\n'
+          fi
+          if [ -n "$OTHER" ]; then
+            WHATS_CHANGED="${WHATS_CHANGED}### Other Changes"$'\n'"${OTHER}"$'\n\n'
+          fi
+          if [ -z "$COMMITS" ]; then
+            WHATS_CHANGED="No changes recorded since ${PREVIOUS_TAG}."$'\n\n'
+          fi
+
           # Save to output
           echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+          # Use EOF to handle multiline output
+          echo "WHATS_CHANGED<<EOF" >> $GITHUB_OUTPUT
+          echo "$WHATS_CHANGED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release with GitHub CLI
         env:
@@ -220,33 +261,45 @@ jobs:
             exit 0
           fi
 
+          # Materialize expressions as shell vars first, then write the notes file
+          # with a quoted heredoc so the markdown code fences below aren't parsed
+          # as shell command substitution.
+          PACKAGE_NAME="${{ steps.version.outputs.PACKAGE_NAME }}"
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          VERSION_TAG="${{ steps.version.outputs.VERSION_TAG }}"
+          PREVIOUS_TAG="${{ steps.changelog.outputs.PREVIOUS_TAG }}"
+          WHATS_CHANGED="${{ steps.changelog.outputs.WHATS_CHANGED }}"
+          REPO="${{ github.repository }}"
+
+          {
+            echo "## ${PACKAGE_NAME} v${VERSION}"
+            echo ""
+            echo "### What's Changed"
+            echo "$WHATS_CHANGED"
+            echo "**Full Changelog**: https://github.com/${REPO}/compare/${PREVIOUS_TAG}...${VERSION_TAG}"
+            echo ""
+            echo "### Installation"
+            echo ""
+            echo "#### Via npm (from GitHub Packages):"
+            echo '```bash'
+            echo "npm install @builtnorth/${PACKAGE_NAME}@${VERSION}"
+            echo '```'
+            echo ""
+            echo "#### Via package.json:"
+            echo '```json'
+            echo "\"@builtnorth/${PACKAGE_NAME}\": \"${VERSION}\""
+            echo '```'
+            echo ""
+            echo "### What's included"
+            echo "- Compiled JavaScript (ES5)"
+            echo "- CSS styles (if applicable)"
+            echo "- Source maps for debugging"
+          } > release_notes.md
+
           # Create release
           gh release create "$TAG" \
             --title "Release ${{ steps.version.outputs.VERSION_TAG }}" \
-            --notes "## ${{ steps.version.outputs.PACKAGE_NAME }} v${{ steps.version.outputs.VERSION }}
-
-            ### Installation
-
-            #### Via npm (from GitHub Packages):
-            \`\`\`bash
-            npm install @builtnorth/${{ steps.version.outputs.PACKAGE_NAME }}@${{ steps.version.outputs.VERSION }}
-            \`\`\`
-
-            #### Via package.json:
-            \`\`\`json
-            \"@builtnorth/${{ steps.version.outputs.PACKAGE_NAME }}\": \"${{ steps.version.outputs.VERSION }}\"
-            \`\`\`
-
-            ### What's included
-            - Compiled JavaScript (ES5)
-            - CSS styles (if applicable)
-            - Source maps for debugging
-
-            ### Changelog
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md)
-            
-            ### Full Changelog
-            [Compare changes](https://github.com/${{ github.repository }}/compare/${{ steps.changelog.outputs.PREVIOUS_TAG }}...${{ steps.version.outputs.VERSION_TAG }})" \
+            --notes-file release_notes.md \
             ${{ inputs.prerelease && '--prerelease' || '' }} \
             $ARCHIVE_PATH
 
