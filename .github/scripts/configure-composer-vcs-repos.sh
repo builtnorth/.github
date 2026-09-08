@@ -14,6 +14,7 @@
 #   full                    — legacy kitchen-sink (escape hatch only)
 #
 # Usage: bash configure-composer-vcs-repos.sh [profile]
+# Portable: no bash-4 associative arrays (macOS /bin/bash is 3.2).
 set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
@@ -69,51 +70,61 @@ register_kitchen_sink() {
 	done
 }
 
+# Emit "key<TAB>url" lines for every VCS mirror this package needs.
+collect_from_composer_pairs() {
+	jq -r '
+		def repo_key($url):
+			($url | sub("\\.git$"; "") | split("/") | last);
+
+		[
+			(
+				(.repositories // {})
+				| if type == "array" then .[] else .[] end
+				| select((.type == "vcs") or (.type == "git"))
+				| select((.url // "") != "")
+				| [repo_key(.url), .url]
+			),
+			(
+				((.require // {}) + (.["require-dev"] // {}))
+				| to_entries[]
+				| select(.key | startswith("builtnorth/"))
+				| .key as $pkg
+				| ($pkg | sub("^builtnorth/"; "")) as $repo
+				| [$repo, ("https://github.com/" + env.ORG + "/" + $repo + ".git")]
+			)
+		]
+		| .[]
+		| @tsv
+	' composer.json
+}
+
 register_from_composer() {
-	# Build the exact set of VCS mirrors this package needs, then rewrite
-	# repositories to that set only (drops leftover numeric keys from array-form
-	# composer.json and never adds unrelated private repos).
-	declare -A urls_by_key=()
-
-	local urls
-	urls=$(jq -r '
-		(.repositories // {})
-		| if type == "array" then .[] else .[] end
-		| select((.type == "vcs") or (.type == "git"))
-		| .url // empty
-	' composer.json)
-
-	local url key
-	while IFS= read -r url; do
-		[ -z "$url" ] && continue
-		key=$(repo_key_from_url "$url")
-		urls_by_key["$key"]="$url"
-	done <<<"$urls"
-
-	local pkgs
-	pkgs=$(jq -r '
-		((.require // {}) + (.["require-dev"] // {}))
-		| keys[]
-		| select(startswith("builtnorth/"))
-	' composer.json)
-
-	local pkg repo
-	while IFS= read -r pkg; do
-		[ -z "$pkg" ] && continue
-		repo="${pkg#builtnorth/}"
-		urls_by_key["$repo"]="https://github.com/${ORG}/${repo}.git"
-	done <<<"$pkgs"
+	# Rewrite repositories to exactly the derived set (drops leftover numeric
+	# keys from array-form composer.json; never adds unrelated private repos).
+	local pairs tmp seen key url
+	pairs=$(ORG="$ORG" collect_from_composer_pairs || true)
 
 	composer config --unset repositories 2>/dev/null || true
 
-	if [ "${#urls_by_key[@]}" -eq 0 ]; then
+	if [ -z "${pairs}" ]; then
 		echo "  (no VCS repositories required)"
 		return 0
 	fi
 
-	for key in "${!urls_by_key[@]}"; do
-		register_url "$key" "${urls_by_key[$key]}"
-	done
+	tmp=$(mktemp)
+	seen=$(mktemp)
+	printf '%s\n' "$pairs" >"$tmp"
+
+	while IFS=$'\t' read -r key url; do
+		[ -z "$key" ] && continue
+		if grep -qxF "$key" "$seen" 2>/dev/null; then
+			continue
+		fi
+		echo "$key" >>"$seen"
+		register_url "$key" "$url"
+	done <"$tmp"
+
+	rm -f "$tmp" "$seen"
 }
 
 echo "Configuring Composer VCS repositories (profile=${PROFILE})..."
