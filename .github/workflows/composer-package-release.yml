@@ -28,6 +28,11 @@ on:
                 required: false
                 type: string
                 default: ""
+            composer-repository-profile:
+                description: "full = all Built North VCS mirrors; coding-standards-only = coding-standards only (avoids cloning unrelated private repos during composer update)"
+                required: false
+                type: string
+                default: "full"
         secrets:
             WORKFLOW_TOKEN:
                 required: false
@@ -72,6 +77,8 @@ jobs:
         needs: preflight
         if: needs.preflight.outputs.already_released != 'true'
         uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@987029ffa7bf6ed241b2c6572426f8863ecc1ad2
+        with:
+            composer-repository-profile: ${{ inputs.composer-repository-profile }}
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 
