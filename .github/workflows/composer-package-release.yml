@@ -33,6 +33,11 @@ on:
                 required: false
                 type: string
                 default: "full"
+            run-ci:
+                description: "Run package CI before creating the release"
+                required: false
+                type: boolean
+                default: true
         secrets:
             WORKFLOW_TOKEN:
                 required: false
@@ -75,7 +80,7 @@ jobs:
 
     ci:
         needs: preflight
-        if: needs.preflight.outputs.already_released != 'true'
+        if: needs.preflight.outputs.already_released != 'true' && inputs.run-ci
         uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@d5ed84ba34c79b2ae266bfd4f1942a15481b30c2
         with:
             composer-repository-profile: ${{ inputs.composer-repository-profile }}
@@ -85,7 +90,12 @@ jobs:
     release:
         name: Create Release
         needs: [preflight, ci]
-        if: needs.preflight.outputs.already_released != 'true'
+        if: >-
+            always()
+            && !cancelled()
+            && needs.preflight.result == 'success'
+            && needs.preflight.outputs.already_released != 'true'
+            && (needs.ci.result == 'success' || needs.ci.result == 'skipped')
         runs-on: ubuntu-latest
         permissions:
             contents: write
