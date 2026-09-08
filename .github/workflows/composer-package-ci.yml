@@ -119,7 +119,18 @@ jobs:
 
       - name: Security check for vulnerabilities
         if: inputs.run-security-check
-        run: composer audit --no-dev --locked --abandoned=report
+        run: |
+          PROD_PKGS=$(jq -r '
+            (.require // {})
+            | keys
+            | map(select(. != "php" and (startswith("ext-") | not) and (startswith("composer-plugin-api") | not)))
+            | length
+          ' composer.json)
+          if [ "$PROD_PKGS" = "0" ]; then
+            echo "No production Composer packages to audit."
+            exit 0
+          fi
+          composer audit --no-dev --locked --abandoned=report
 
       - name: Run PHPUnit tests
         run: composer test
