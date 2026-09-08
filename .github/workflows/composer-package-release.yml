@@ -86,6 +86,7 @@ jobs:
             composer-repository-profile: ${{ inputs.composer-repository-profile }}
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+            WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
 
     release:
         name: Create Release

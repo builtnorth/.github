@@ -46,6 +46,8 @@ on:
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN:
         required: false
+      WORKFLOW_TOKEN:
+        required: false
 
 jobs:
   test:
@@ -85,7 +87,7 @@ jobs:
       
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           PROFILE="${{ inputs.composer-repository-profile }}"
           if [ "$PROFILE" = "coding-standards-only" ]; then
@@ -109,7 +111,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -153,7 +155,7 @@ jobs:
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           PROFILE="${{ inputs.composer-repository-profile }}"
           if [ "$PROFILE" = "coding-standards-only" ]; then
@@ -177,7 +179,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -212,7 +214,7 @@ jobs:
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           PROFILE="${{ inputs.composer-repository-profile }}"
           if [ "$PROFILE" = "coding-standards-only" ]; then
@@ -236,7 +238,7 @@ jobs:
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
