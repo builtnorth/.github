@@ -5,12 +5,35 @@ set -euo pipefail
 ORG="${BUILTNORTH_ORG:-builtnorth}"
 MODE="${1:-pin}"
 
+# Prefer an explicit token so private repos are visible to git ls-remote.
+# Create Release exports GH_TOKEN; COMPOSER_AUTH github-oauth is a fallback.
+resolve_github_token() {
+	if [ -n "${GH_TOKEN:-}" ]; then
+		echo "${GH_TOKEN}"
+		return
+	fi
+	if [ -n "${GITHUB_TOKEN:-}" ]; then
+		echo "${GITHUB_TOKEN}"
+		return
+	fi
+	if [ -n "${COMPOSER_AUTH:-}" ]; then
+		echo "${COMPOSER_AUTH}" | jq -r '.["github-oauth"]["github.com"] // empty' 2>/dev/null || true
+	fi
+}
+
+GITHUB_AUTH_TOKEN="$(resolve_github_token)"
+
 get_latest_stable_tag() {
 	local repo="$1"
 	local tag
+	local remote="https://github.com/${ORG}/${repo}.git"
+
+	if [ -n "${GITHUB_AUTH_TOKEN}" ]; then
+		remote="https://x-access-token:${GITHUB_AUTH_TOKEN}@github.com/${ORG}/${repo}.git"
+	fi
 
 	# Use git ls-remote (not gh REST API) to avoid rate limits during release cascades.
-	tag=$(git ls-remote --tags "https://github.com/${ORG}/${repo}.git" 'v*' 2>/dev/null \
+	tag=$(git ls-remote --tags "${remote}" 'v*' 2>/dev/null \
 		| sed 's/.*refs\/tags\///' \
 		| sed 's/\^{}//' \
 		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
@@ -72,12 +95,26 @@ if [ "$MODE" = "pin" ]; then
 		tag=$(get_latest_stable_tag "$repo")
 
 		if [ -z "$tag" ]; then
-			echo "WARNING: No stable GitHub release found for ${pkg} (${ORG}/${repo})" >&2
-			continue
+			echo "ERROR: No stable GitHub release tag visible for ${pkg} (${ORG}/${repo})." >&2
+			echo "ERROR: For private repos this usually means GH_TOKEN/COMPOSER_AUTH cannot read tags." >&2
+			echo "ERROR: Refusing to pin/skip — fix auth or publish the upstream tag before releasing." >&2
+			exit 1
 		fi
 
 		version=$(normalize_version "$tag")
 		major_minor=$(echo "$version" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
+		current=$(jq -r --arg p "$pkg" '.require[$p] // empty' composer.json)
+		# Never narrow an intentional newer major (e.g. keep ^2.0 when latest visible is still 1.x).
+		if [ -n "$current" ] && [[ "$current" == ^* ]]; then
+			current_base="${current#^}"
+			current_major="${current_base%%.*}"
+			latest_major="${version%%.*}"
+			if [ "$current_major" -gt "$latest_major" ] 2>/dev/null; then
+				echo "ERROR: ${pkg} composer.json requires ${current} but latest visible stable is ${tag}." >&2
+				echo "ERROR: Upstream major is not published/visible yet — cascade must stop." >&2
+				exit 1
+			fi
+		fi
 		echo "Pinning ${pkg} to ^${major_minor} (latest stable release ${tag})"
 		composer require "${pkg}:^${major_minor}" --no-update --no-interaction
 	done

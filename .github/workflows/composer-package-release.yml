@@ -161,7 +161,7 @@ jobs:
               uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
                   repository: builtnorth/.github
-                  ref: e63eb60e176fd0f7996a1d55aea4e77247614b5e
+                  ref: main
                   path: _builtnorth-github
                   token: ${{ github.token }}
 
@@ -169,8 +169,13 @@ jobs:
               if: hashFiles('composer.json') != ''
               run: |
                   TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                  if [ -z "$TOKEN" ]; then
+                    echo "::error::No GitHub token available for private Composer/VCS access (POLARIS_PLUGIN_GITHUB_TOKEN / WORKFLOW_TOKEN / github.token)."
+                    exit 1
+                  fi
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
+                  echo "GITHUB_TOKEN_CONFIGURED=1" >> "$GITHUB_ENV"
 
             - name: Finalize and verify Composer dependencies
               if: hashFiles('composer.json') != '' && github.event_name != 'push'
@@ -183,6 +188,11 @@ jobs:
                           }
                       }
               run: |
+                  if [ -z "${GH_TOKEN}" ]; then
+                    echo "::error::GH_TOKEN is empty — cannot resolve private builtnorth dependencies."
+                    exit 1
+                  fi
+
                   DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
                   if [ -z "$DIRECT_PACKAGES" ]; then
                     echo "No direct builtnorth production dependencies."
