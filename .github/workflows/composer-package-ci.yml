@@ -34,10 +34,10 @@ on:
         type: boolean
         default: true
       composer-repository-profile:
-        description: "full = all Built North VCS mirrors; coding-standards-only = coding-standards only (avoids cloning unrelated private repos during composer update)"
+        description: "from-composer (default) = VCS repos derived from this package's composer.json; coding-standards-only; full = legacy kitchen-sink"
         required: false
         type: string
-        default: 'full'
+        default: 'from-composer'
       coverage-php-version:
         description: 'PHP version for coverage report'
         required: false
@@ -85,29 +85,21 @@ jobs:
       - name: Validate composer.json
         run: composer validate --no-check-lock
       
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+
       - name: Configure private repositories
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
-        run: |
-          PROFILE="${{ inputs.composer-repository-profile }}"
-          if [ "$PROFILE" = "coding-standards-only" ]; then
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-          else
-            composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
-            composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
-            composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
-            composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
-            composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
-            composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
-            composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
-            composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
-            composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
-            composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-            composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
-            composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-            composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          fi
+        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:
@@ -153,29 +145,21 @@ jobs:
           coverage: xdebug
           tools: composer:v2
 
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+
       - name: Configure private repositories
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
-        run: |
-          PROFILE="${{ inputs.composer-repository-profile }}"
-          if [ "$PROFILE" = "coding-standards-only" ]; then
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-          else
-            composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
-            composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
-            composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
-            composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
-            composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
-            composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
-            composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
-            composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
-            composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
-            composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-            composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
-            composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-            composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          fi
+        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:
@@ -212,29 +196,21 @@ jobs:
           coverage: none
           tools: composer:v2
 
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+
       - name: Configure private repositories
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
-        run: |
-          PROFILE="${{ inputs.composer-repository-profile }}"
-          if [ "$PROFILE" = "coding-standards-only" ]; then
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-          else
-            composer config repositories.polaris vcs https://github.com/builtnorth/polaris.git
-            composer config repositories.polaris-ai vcs https://github.com/builtnorth/polaris-ai.git
-            composer config repositories.job-dispatcher vcs https://github.com/builtnorth/job-dispatcher.git
-            composer config repositories.instant-actions vcs https://github.com/builtnorth/instant-actions.git
-            composer config repositories.wp-portability vcs https://github.com/builtnorth/wp-portability.git
-            composer config repositories.polaris-integrations-lib vcs https://github.com/builtnorth/polaris-integrations-lib.git
-            composer config repositories.wp-utility vcs https://github.com/builtnorth/wp-utility.git
-            composer config repositories.wp-baseline vcs https://github.com/builtnorth/wp-baseline.git
-            composer config repositories.wp-environment-indicator vcs https://github.com/builtnorth/wp-environment-indicator.git
-            composer config repositories.extended-cpts-extras vcs https://github.com/builtnorth/extended-cpts-extras.git
-            composer config repositories.wp-schema vcs https://github.com/builtnorth/wp-schema.git
-            composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
-            composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
-            composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          fi
+        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:

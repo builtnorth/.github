@@ -53,26 +53,10 @@ normalize_version() {
 }
 
 register_builtnorth_vcs_repos() {
-	local repos=(
-		wp-baseline
-		wp-environment-indicator
-		wp-utility
-		extended-cpts-extras
-		wp-schema
-		wp-config
-		wp-portability
-		polaris
-		polaris-ai
-		polaris-controls
-		polaris-integrations-lib
-		job-dispatcher
-		instant-actions
-		coding-standards
-	)
-
-	for repo in "${repos[@]}"; do
-		composer config "repositories.${repo}" vcs "https://github.com/${ORG}/${repo}.git" 2>/dev/null || true
-	done
+	local script_dir
+	script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+	# Derive from this package's composer.json — never the kitchen-sink list.
+	bash "${script_dir}/configure-composer-vcs-repos.sh" from-composer
 }
 
 if [ ! -f composer.json ]; then

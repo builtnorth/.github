@@ -29,10 +29,10 @@ on:
                 type: string
                 default: ""
             composer-repository-profile:
-                description: "full = all Built North VCS mirrors; coding-standards-only = coding-standards only (avoids cloning unrelated private repos during composer update)"
+                description: "from-composer (default) = VCS repos derived from this package's composer.json; coding-standards-only; full = legacy kitchen-sink"
                 required: false
                 type: string
-                default: "full"
+                default: "from-composer"
             run-ci:
                 description: "Run package CI before creating the release"
                 required: false
