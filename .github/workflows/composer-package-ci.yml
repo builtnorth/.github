@@ -119,7 +119,7 @@ jobs:
 
       - name: Security check for vulnerabilities
         if: inputs.run-security-check
-        run: composer audit --no-dev --abandoned=report
+        run: composer audit --no-dev --locked --abandoned=report
 
       - name: Run PHPUnit tests
         run: composer test
