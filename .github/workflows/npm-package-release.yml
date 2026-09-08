@@ -47,15 +47,54 @@ on:
 env:
   PACKAGE_NAME: ${{ inputs.package-name || github.event.repository.name }}
 
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      already_released: ${{ steps.release.outputs.already_released }}
+    steps:
+      - name: Check release idempotency
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ inputs.version || github.ref_name }}"
+          TAG="v${VERSION#v}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "already_released=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "already_released=false" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" != "push" ] && gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG exists without a release. Resolve that partial release before retrying."
+            exit 1
+          fi
+
+  ci:
+    needs: preflight
+    if: needs.preflight.outputs.already_released != 'true'
+    uses: builtnorth/.github/.github/workflows/npm-package-ci.yml@e63eb60e176fd0f7996a1d55aea4e77247614b5e
+    secrets:
+      POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+
   build:
+    needs: [preflight, ci]
+    if: needs.preflight.outputs.already_released != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Get version from tag or input
         id: version
@@ -76,9 +115,36 @@ jobs:
           echo "PACKAGE_NAME=${{ env.PACKAGE_NAME }}" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ inputs.node-version }}
+
+      - name: Finalize source package version
+        if: github.event_name != 'push'
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+
+      - name: Verify tagged source version
+        if: github.event_name == 'push'
+        run: |
+          SOURCE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$SOURCE_VERSION" != "${{ steps.version.outputs.VERSION }}" ]; then
+            echo "::error::Tag ${{ steps.version.outputs.VERSION_TAG }} points to package.json version $SOURCE_VERSION."
+            exit 1
+          fi
+
+      - name: Commit finalized release source
+        if: github.event_name != 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add package.json package-lock.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: prepare ${{ steps.version.outputs.VERSION_TAG }} release"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
+      - name: Record release source commit
+        run: echo "RELEASE_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Configure GitHub Packages auth
         run: |
@@ -88,7 +154,7 @@ jobs:
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
-        uses: actions/checkout@v3
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
@@ -161,20 +227,23 @@ jobs:
           # Create tarball
           cd ..
           tar -czf ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz -C release-package .
+          {
+            printf '# source-commit %s\n' "$RELEASE_SOURCE_SHA"
+            tar -tzf ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz | LC_ALL=C sort
+          } > ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.manifest.txt
+          sha256sum ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz > ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz.sha256
 
       - name: Create tag if not exists
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
         run: |
-          # Configure git
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
           TAG="${{ steps.version.outputs.VERSION_TAG }}"
-
+          git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists locally"
-          elif git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists on remote"
+            if [ "$(git rev-list -n1 "$TAG")" != "$(git rev-parse HEAD)" ]; then
+              echo "::error::Tag $TAG already exists but does not point to finalized HEAD."
+              exit 1
+            fi
+            echo "Tag $TAG already points to finalized HEAD."
           else
             git tag -a "$TAG" -m "Release $TAG"
             git push origin "$TAG"
@@ -184,7 +253,7 @@ jobs:
         id: changelog
         run: |
           # Get the previous tag
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p' || echo "")
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '1p' || echo "")
 
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, this is the first release"
@@ -251,8 +320,12 @@ jobs:
           # Determine archive location
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
             ARCHIVE_PATH="workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"
+            MANIFEST_PATH="workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.manifest.txt"
+            CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
           else
             ARCHIVE_PATH="${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"
+            MANIFEST_PATH="${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.manifest.txt"
+            CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
           fi
 
           TAG="${{ steps.version.outputs.VERSION_TAG }}"
@@ -260,7 +333,7 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists — upload archive if missing, then exit"
             if ! gh release view "$TAG" --json assets -q '.assets[].name' | grep -q "${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz"; then
-              gh release upload "$TAG" "$ARCHIVE_PATH" --clobber
+              gh release upload "$TAG" "$ARCHIVE_PATH" "$MANIFEST_PATH" "$CHECKSUM_PATH"
             fi
             exit 0
           fi
@@ -305,7 +378,9 @@ jobs:
             --title "Release ${{ steps.version.outputs.VERSION_TAG }}" \
             --notes-file release_notes.md \
             ${{ inputs.prerelease && '--prerelease' || '' }} \
-            $ARCHIVE_PATH
+            "$ARCHIVE_PATH" \
+            "$MANIFEST_PATH" \
+            "$CHECKSUM_PATH"
 
       - name: Publish to npm registry
         if: inputs.publish-to-npm

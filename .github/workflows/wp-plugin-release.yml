@@ -16,16 +16,54 @@ on:
             POLARIS_PLUGIN_GITHUB_TOKEN:
                 required: false
 
+concurrency:
+    group: release-${{ github.repository }}
+    cancel-in-progress: false
+
 jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            already_released: ${{ steps.release.outputs.already_released }}
+        steps:
+            - name: Check release idempotency
+              id: release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  VERSION="${{ inputs.version }}"
+                  TAG="v${VERSION#v}"
+                  if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+                    echo "already_released=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                  echo "already_released=false" >> "$GITHUB_OUTPUT"
+                  if gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+                    echo "::error::Tag $TAG exists without a release. Resolve that partial release before retrying."
+                    exit 1
+                  fi
+
+    ci:
+        needs: preflight
+        if: needs.preflight.outputs.already_released != 'true'
+        uses: builtnorth/.github/.github/workflows/wp-plugin-ci.yml@e63eb60e176fd0f7996a1d55aea4e77247614b5e
+        secrets:
+            POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+
     build:
+        needs: [preflight, ci]
+        if: needs.preflight.outputs.already_released != 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: write
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
                   submodules: false
+                  fetch-depth: 0
 
             - name: Get version from input
               id: version
@@ -60,35 +98,8 @@ jobs:
                       npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
                   fi
 
-            - name: Commit version updates
-              run: |
-                  git config --local user.email "action@github.com"
-                  git config --local user.name "GitHub Action"
-
-                  git add -A
-
-                  if ! git diff --cached --quiet; then
-                      git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }}"
-                      git push origin HEAD:${{ github.ref_name }}
-                  fi
-
-            - name: Create and push tag
-              run: |
-                  TAG="${{ steps.version.outputs.VERSION_TAG }}"
-
-                  if git rev-parse "$TAG" >/dev/null 2>&1; then
-                    echo "Tag $TAG already exists locally"
-                  elif git ls-remote --exit-code origin "refs/tags/$TAG" >/dev/null 2>&1; then
-                    echo "Tag $TAG already exists on remote"
-                  else
-                    git tag -a "$TAG" -m "Release $TAG"
-                    git push origin "$TAG"
-                  fi
-
-                  echo "Continuing workflow to create release"
-
             - name: Setup PHP
-              uses: shivammathur/setup-php@v2
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
               with:
                   php-version: "8.2"
                   tools: composer:v2
@@ -98,7 +109,7 @@ jobs:
               run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
             - name: Cache Composer packages
-              uses: actions/cache@v4
+              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
               with:
                   path: ${{ steps.composer-cache.outputs.dir }}
                   key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
@@ -117,10 +128,10 @@ jobs:
                   echo "Composer auth configured via environment"
 
             - name: Checkout shared release scripts
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
                   repository: builtnorth/.github
-                  ref: main
+                  ref: e63eb60e176fd0f7996a1d55aea4e77247614b5e
                   path: _builtnorth-github
 
             - name: Configure git for Composer VCS clones
@@ -159,22 +170,12 @@ jobs:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
 
-            - name: Commit aligned composer constraints
-              run: |
-                  git config --local user.email "action@github.com"
-                  git config --local user.name "GitHub Action"
-                  git add composer.json
-                  if ! git diff --cached --quiet; then
-                    git commit -m "chore: align builtnorth composer constraints with latest releases"
-                    git push origin HEAD:${{ github.ref_name }}
-                  fi
-
             - name: Verify composer constraints allow latest releases
               env:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify-constraints
 
-            - name: Install production dependencies
+            - name: Finalize production dependency lock
               env:
                   COMPOSER_AUTH: |
                       {
@@ -183,32 +184,39 @@ jobs:
                           }
                       }
               run: |
-                  # Set production-optimized autoloader settings
                   composer config optimize-autoloader true
                   composer config classmap-authoritative true
                   composer config prepend-autoloader true
-
-                  # Remove lock file to force fresh resolution of all dependencies
-                  rm -f composer.lock
-
-                  # Update dependencies to resolve version conflicts. --prefer-dist
-                  # downloads release tarballs instead of full git clones — much
-                  # faster, and avoids leaving vendor/*/.git behind (previously
-                  # required a separate cleanup step since that bloated releases
-                  # past raw.githubusercontent.com's size limit).
-                  composer update --no-scripts --no-interaction --prefer-dist
-
-                  # Show what was resolved
+                  composer update --no-dev --no-scripts --no-interaction --prefer-dist
                   echo "=== Resolved versions ==="
                   composer show --locked 2>/dev/null | grep builtnorth || true
-
-                  # Now install production dependencies with optimizations
-                  composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-dist
 
             - name: Verify builtnorth deps match latest GitHub releases
               env:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
+
+            - name: Commit finalized manifests and lock
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -- '*.php' composer.json composer.lock package.json package-lock.json 2>/dev/null || true
+                  if ! git diff --cached --quiet; then
+                    git commit -m "chore: prepare ${{ steps.version.outputs.VERSION_TAG }} release"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Install production dependencies from lock
+              env:
+                  COMPOSER_AUTH: |
+                      {
+                          "github-oauth": {
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
+                          }
+                      }
+              run: |
+                  rm -rf vendor
+                  composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-dist --no-interaction
 
             - name: Generate readme.txt
               run: |
@@ -216,6 +224,13 @@ jobs:
                   if [ -f "bin/generate-readme.php" ]; then
                       php bin/generate-readme.php
                       echo "readme.txt generated successfully"
+                  fi
+
+            - name: Verify committed production artifacts
+              run: |
+                  if [ -d build ] && grep -RIl --include='*.js' --fixed-strings '// webpackBootstrap' build/; then
+                    echo "::error::Committed build/ contains development webpack bundles. Run the local release prebuild, commit its production output, and retry."
+                    exit 1
                   fi
 
             - name: Create plugin zip
@@ -263,7 +278,7 @@ jobs:
               id: release_notes
               run: |
                   # Get the previous tag
-                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '1p')
 
                   if [ -z "$PREVIOUS_TAG" ]; then
                       echo "No previous tag found, this is the first release"
@@ -338,13 +353,38 @@ jobs:
                       # Add new [Unreleased] section at the top
                       sed -i "/^## \[${{ steps.version.outputs.VERSION }}\]/i\\## [Unreleased]\\n" CHANGELOG.md
                       
-                      # Commit the changelog update
-                      git add CHANGELOG.md
-                      if ! git diff --cached --quiet; then
-                          git commit -m "docs: update CHANGELOG.md for v${{ steps.version.outputs.VERSION }}"
-                          git push origin HEAD:${{ github.ref_name }}
-                      fi
                   fi
+
+            - name: Commit finalized release source
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -- readme.txt CHANGELOG.md 2>/dev/null || true
+                  if ! git diff --cached --quiet; then
+                    git commit -m "docs: finalize ${{ steps.version.outputs.VERSION_TAG }} release files"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Create exact-source tag
+              run: |
+                  TAG="${{ steps.version.outputs.VERSION_TAG }}"
+                  git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    if [ "$(git rev-list -n1 "$TAG")" != "$(git rev-parse HEAD)" ]; then
+                      echo "::error::Tag $TAG already exists but does not point to finalized HEAD."
+                      exit 1
+                    fi
+                    echo "Tag $TAG already points to finalized HEAD."
+                  else
+                    git tag -a "$TAG" -m "Release $TAG"
+                    git push origin "$TAG"
+                  fi
+
+                  {
+                    printf '# source-commit %s\n' "$(git rev-parse HEAD)"
+                    unzip -Z1 "${{ steps.version.outputs.PLUGIN_NAME }}.zip" | LC_ALL=C sort
+                  } > "${{ steps.version.outputs.PLUGIN_NAME }}.manifest.txt"
+                  sha256sum "${{ steps.version.outputs.PLUGIN_NAME }}.zip" > "${{ steps.version.outputs.PLUGIN_NAME }}.zip.sha256"
 
             # Use github.token here so release creation is not tied to POLARIS_PLUGIN_GITHUB_TOKEN
             # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
@@ -353,6 +393,11 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
               run: |
+                  if gh release view "${{ steps.version.outputs.VERSION_TAG }}" >/dev/null 2>&1; then
+                    echo "Release ${{ steps.version.outputs.VERSION_TAG }} already exists; nothing to publish."
+                    exit 0
+                  fi
+
                   PRERELEASE_FLAG=""
                   if [ "${{ inputs.prerelease }}" = "true" ]; then
                       PRERELEASE_FLAG="--prerelease"
@@ -364,7 +409,9 @@ jobs:
                     --title "${{ steps.version.outputs.VERSION_TAG }}" \
                     --notes-file release_notes.md \
                     $PRERELEASE_FLAG \
-                    ${{ steps.version.outputs.PLUGIN_NAME }}.zip
+                    ${{ steps.version.outputs.PLUGIN_NAME }}.zip \
+                    ${{ steps.version.outputs.PLUGIN_NAME }}.manifest.txt \
+                    ${{ steps.version.outputs.PLUGIN_NAME }}.zip.sha256
 
             - name: Refresh Composer plugin index
               continue-on-error: true

@@ -69,10 +69,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
@@ -92,10 +92,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: ${{ matrix.php-version }}
           extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql, mysqli, pdo_mysql, bcmath, soap, intl, gd, exif, iconv
@@ -103,7 +103,7 @@ jobs:
           tools: composer:v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ inputs.node-version }}
 
@@ -112,7 +112,7 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -136,7 +136,11 @@ jobs:
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
           composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          composer update --prefer-dist --no-progress
+          if [ -f composer.lock ]; then
+            composer install --prefer-dist --no-progress --no-interaction
+          else
+            composer update --prefer-dist --no-progress --no-interaction
+          fi
 
       - name: Install and start wp-env
         run: |
@@ -151,7 +155,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.php-version == '8.1' && matrix.wordpress-version == 'latest'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
         with:
           file: ./coverage.xml
           flags: unittests
@@ -165,10 +169,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.1"
           coverage: none
@@ -179,7 +183,7 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
       - name: Cache composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -203,7 +207,11 @@ jobs:
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
           composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          composer update --prefer-dist --no-progress
+          if [ -f composer.lock ]; then
+            composer install --prefer-dist --no-progress --no-interaction
+          else
+            composer update --prefer-dist --no-progress --no-interaction
+          fi
 
       - name: Run PHPCS
         run: |
@@ -218,10 +226,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.1"
           coverage: none
@@ -245,7 +253,11 @@ jobs:
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
           composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          composer update --prefer-dist --no-progress
+          if [ -f composer.lock ]; then
+            composer install --prefer-dist --no-progress --no-interaction
+          else
+            composer update --prefer-dist --no-progress --no-interaction
+          fi
 
       - name: Run PHP Compatibility check
         run: |
@@ -259,10 +271,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: "8.1"
           coverage: none
@@ -286,7 +298,11 @@ jobs:
           composer config repositories.wp-config vcs https://github.com/builtnorth/wp-config.git
           composer config repositories.coding-standards vcs https://github.com/builtnorth/coding-standards.git
           composer config repositories.php-ai-client vcs https://github.com/WordPress/php-ai-client.git
-          composer update --prefer-dist --no-progress
+          if [ -f composer.lock ]; then
+            composer install --prefer-dist --no-progress --no-interaction
+          else
+            composer update --prefer-dist --no-progress --no-interaction
+          fi
 
       - name: Run security check for PHP dependencies
         env:
@@ -303,7 +319,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Check version bump
         run: |

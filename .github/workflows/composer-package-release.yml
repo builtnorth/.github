@@ -39,16 +39,53 @@ env:
     PACKAGE_DISPLAY_NAME: ${{ inputs.package-display-name || github.event.repository.name }}
     COMPOSER_NAMESPACE: ${{ inputs.composer-namespace || format('builtnorth/{0}', github.event.repository.name) }}
 
+concurrency:
+    group: release-${{ github.repository }}
+    cancel-in-progress: false
+
 jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            already_released: ${{ steps.release.outputs.already_released }}
+        steps:
+            - name: Check release idempotency
+              id: release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  VERSION="${{ inputs.version || github.ref_name }}"
+                  TAG="v${VERSION#v}"
+                  if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+                    echo "already_released=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                  echo "already_released=false" >> "$GITHUB_OUTPUT"
+                  if [ "${{ github.event_name }}" != "push" ] && gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+                    echo "::error::Tag $TAG exists without a release. Resolve that partial release before retrying."
+                    exit 1
+                  fi
+
+    ci:
+        needs: preflight
+        if: needs.preflight.outputs.already_released != 'true'
+        uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@e63eb60e176fd0f7996a1d55aea4e77247614b5e
+        secrets:
+            POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+
     release:
         name: Create Release
+        needs: [preflight, ci]
+        if: needs.preflight.outputs.already_released != 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: write
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@v4
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
                   fetch-depth: 0
                   token: ${{ secrets.WORKFLOW_TOKEN || github.token }}
@@ -72,7 +109,7 @@ jobs:
                   echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
 
             - name: Setup PHP
-              uses: shivammathur/setup-php@v2
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
               with:
                   php-version: "8.2"
                   tools: composer:v2
@@ -82,14 +119,14 @@ jobs:
               run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
             - name: Cache Composer packages
-              uses: actions/cache@v4
+              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
               with:
                   path: ${{ steps.composer-cache.outputs.dir }}
                   key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
                   restore-keys: ${{ runner.os }}-composer-
 
             - name: Clean composer.json for production
-              if: hashFiles('composer.json') != ''
+              if: hashFiles('composer.json') != '' && github.event_name != 'push'
               run: |
                   # Remove @dev dependencies and path repositories for production release
                   if [ -f composer.json ]; then
@@ -103,11 +140,11 @@ jobs:
                   fi
 
             - name: Checkout shared release scripts
-              if: hashFiles('composer.json') != ''
-              uses: actions/checkout@v4
+              if: hashFiles('composer.json') != '' && github.event_name != 'push'
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
               with:
                   repository: builtnorth/.github
-                  ref: main
+                  ref: e63eb60e176fd0f7996a1d55aea4e77247614b5e
                   path: _builtnorth-github
                   token: ${{ github.token }}
 
@@ -118,8 +155,8 @@ jobs:
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
 
-            - name: Resolve and verify builtnorth composer dependencies
-              if: hashFiles('composer.json') != ''
+            - name: Finalize and verify Composer dependencies
+              if: hashFiles('composer.json') != '' && github.event_name != 'push'
               env:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
                   COMPOSER_AUTH: |
@@ -131,35 +168,32 @@ jobs:
               run: |
                   DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
                   if [ -z "$DIRECT_PACKAGES" ]; then
-                    echo "No direct builtnorth production dependencies — skipping composer resolution check."
-                    exit 0
+                    echo "No direct builtnorth production dependencies."
+                  else
+                    bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
                   fi
 
-                  bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
-                  rm -f composer.lock
-                  # --prefer-dist: this resolution is only for the verify check below
-                  # (vendor/ is deleted immediately after) — no reason to pay for a
-                  # full git clone of every dependency just to verify version pins.
-                  composer update --no-scripts --no-interaction --prefer-dist
-                  bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
-                  rm -rf vendor composer.lock
+                  composer update --no-dev --no-scripts --no-interaction --prefer-dist
+                  if [ -n "$DIRECT_PACKAGES" ]; then
+                    bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
+                  fi
+                  rm -rf vendor
 
             # Skip composer.json version update - version tracked via git tags only
             # This prevents merge conflicts between branches
 
             - name: Update package.json version
-              if: hashFiles('package.json') != ''
+              if: hashFiles('package.json') != '' && github.event_name != 'push'
               run: |
                   npm version ${{ steps.version.outputs.version_number }} --no-git-tag-version --allow-same-version
 
-            - name: Commit version updates
+            - name: Commit finalized manifests and lock
               if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
 
-                  # Add composer.json if it was cleaned
-                  git add composer.json 2>/dev/null || true
+                  git add composer.json composer.lock 2>/dev/null || true
 
                   # Add package.json updates if they exist
                   if [ -f package.json ]; then
@@ -172,15 +206,31 @@ jobs:
                     git push origin HEAD:${{ github.ref_name }}
                   fi
 
+            - name: Install finalized production dependencies
+              if: hashFiles('composer.lock') != ''
+              env:
+                  COMPOSER_AUTH: |
+                      {
+                          "github-oauth": {
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                          }
+                      }
+              run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
+
             - name: Create and push tag
               if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
               run: |
-                  # Check if tag already exists
-                  if git rev-parse ${{ steps.version.outputs.version }} >/dev/null 2>&1; then
-                    echo "Tag ${{ steps.version.outputs.version }} already exists"
+                  TAG="${{ steps.version.outputs.version }}"
+                  git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    if [ "$(git rev-list -n1 "$TAG")" != "$(git rev-parse HEAD)" ]; then
+                      echo "::error::Tag $TAG already exists but does not point to finalized HEAD."
+                      exit 1
+                    fi
+                    echo "Tag $TAG already points to finalized HEAD."
                   else
-                    git tag -a ${{ steps.version.outputs.version }} -m "Release ${{ steps.version.outputs.version }}"
-                    git push origin ${{ steps.version.outputs.version }}
+                    git tag -a "$TAG" -m "Release $TAG"
+                    git push origin "$TAG"
                   fi
 
             - name: Generate changelog
@@ -283,9 +333,14 @@ jobs:
                   cd release-archive
                   zip -r ../${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip .
                   cd ..
+                  {
+                    printf '# source-commit %s\n' "$(git rev-parse HEAD)"
+                    unzip -Z1 "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip" | LC_ALL=C sort
+                  } > "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.manifest.txt"
+                  sha256sum "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip" > "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip.sha256"
 
             - name: Create GitHub Release
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
               with:
                   tag_name: ${{ steps.version.outputs.version }}
                   name: ${{ steps.version.outputs.version }}
@@ -295,6 +350,8 @@ jobs:
                   generate_release_notes: false
                   files: |
                       ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip
+                      ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.manifest.txt
+                      ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip.sha256
               env:
                   GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
 
