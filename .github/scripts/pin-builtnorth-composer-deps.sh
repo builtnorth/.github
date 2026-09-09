@@ -5,10 +5,10 @@ set -euo pipefail
 
 MODE="${1:-prepare}"
 
-register_builtnorth_vcs_repos() {
+configure_builtnorth_repository() {
 	local script_dir
 	script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-	# Derive from this package's composer.json — never the kitchen-sink list.
+	# Inject the private package index globally without changing composer.json.
 	bash "${script_dir}/configure-composer-vcs-repos.sh" from-composer
 }
 
@@ -25,7 +25,7 @@ case "$MODE" in
 			echo "WARNING: mode=pin is deprecated; preserving committed constraints." >&2
 		fi
 
-		register_builtnorth_vcs_repos
+		configure_builtnorth_repository
 
 		if [ -z "$DIRECT_PACKAGES" ]; then
 			echo "No direct builtnorth production dependencies."

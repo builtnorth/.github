@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Package/repository slug to release"
+        description: "Explicit repository slugs to release (comma-separated)"
         required: true
         type: string
       version:
@@ -12,11 +12,6 @@ on:
         required: false
         type: string
         default: ""
-      include_dependents:
-        description: "Release affected bundled plugins/themes"
-        required: false
-        type: boolean
-        default: true
       dry_run:
         description: "Plan only; do not merge, push, or dispatch"
         required: false
@@ -47,7 +42,6 @@ jobs:
       GIT_COMMITTER_EMAIL: git@dannorthern.com
       TARGET: ${{ inputs.target }}
       VERSION: ${{ inputs.version }}
-      INCLUDE_DEPENDENTS: ${{ inputs.include_dependents }}
       DRY_RUN: ${{ inputs.dry_run }}
       FORCE_RELEASE: ${{ inputs.force }}
 
@@ -82,9 +76,6 @@ jobs:
 
           if [ -n "$VERSION" ]; then
             args+=(--version "$VERSION")
-          fi
-          if [ "$INCLUDE_DEPENDENTS" != "true" ]; then
-            args+=(--no-dependents)
           fi
           if [ "$FORCE_RELEASE" = "true" ]; then
             args+=(--force)

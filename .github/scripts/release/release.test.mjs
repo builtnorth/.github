@@ -56,7 +56,7 @@ test("Conventional commits calculate independent bumps", () => {
 	assert.equal(classifyCommits(["feat!: replace dispatcher API"]), "major");
 });
 
-test("changed dependencies release before the requested package", () => {
+test("changed dependencies are never released unless explicitly selected", () => {
 	const instantActions = packageNode("instant-actions");
 	const dispatcher = packageNode("job-dispatcher");
 	connect(dispatcher, instantActions, "^2.0");
@@ -73,7 +73,7 @@ test("changed dependencies release before the requested package", () => {
 
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["instant-actions", "job-dispatcher"],
+		["job-dispatcher"],
 	);
 });
 
@@ -85,10 +85,26 @@ test("catalog provides the release graph without Basecamp paths", () => {
 		dispatcher.dependencies.map((edge) => edge.node.slug),
 		["instant-actions"],
 	);
+	const polaris = graph.nodes.find((node) => node.slug === "polaris");
+	assert.deepEqual(
+		polaris.dependencies
+			.filter((edge) => edge.kind === "composer")
+			.map((edge) => edge.node.slug),
+		[
+			"extended-cpts-extras",
+			"polaris-ai",
+			"polaris-controls",
+			"polaris-integrations-lib",
+			"wp-baseline",
+			"wp-environment-indicator",
+			"wp-portability",
+			"wp-utility",
+		],
+	);
 	assert.equal(graph.nodes.some((node) => "path" in node), false);
 });
 
-test("unchanged source libraries are skipped while bundled deployables refresh", () => {
+test("dependents are never added implicitly", () => {
 	const utility = packageNode("wp-utility");
 	const polaris = packageNode("polaris");
 	const plugin = packageNode("polaris-seo", { deployable: true });
@@ -107,9 +123,8 @@ test("unchanged source libraries are skipped while bundled deployables refresh",
 
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["wp-utility", "polaris-seo"],
+		["wp-utility"],
 	);
-	assert.equal(plan.releases[1].version, "1.4.10");
 });
 
 test("a Polaris major release requires explicit deployable migrations", () => {
@@ -144,12 +159,13 @@ test("build-time consumers require committed rebuilt assets", () => {
 		charts: state("1.3.0", { changed: true, buildChanged: true }),
 			"polaris-seo": state("1.4.9"),
 		},
-		targetSlug: "charts",
+		targetSlugs: ["charts", "polaris-seo"],
+		force: true,
 	});
 
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["charts"],
+		["charts", "polaris-seo"],
 	);
 	assert.match(plan.blockers[0], /rebuild and commit/);
 });

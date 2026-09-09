@@ -166,6 +166,10 @@ jobs:
                   path: _builtnorth-github
                   token: ${{ github.token }}
 
+            - name: Stamp runtime version metadata
+              if: hashFiles('composer.json') != '' && github.event_name != 'push'
+              run: bash _builtnorth-github/.github/scripts/stamp-composer-runtime-version.sh "${{ steps.version.outputs.version_number }}"
+
             - name: Configure git for Composer VCS clones
               if: hashFiles('composer.json') != ''
               env:
@@ -235,7 +239,7 @@ jobs:
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
 
-                  git add composer.json composer.lock 2>/dev/null || true
+                  git add composer.json composer.lock inc/Core/Constants.php inc/classes/Base/DefineConstants.php 2>/dev/null || true
 
                   # Add package.json updates if they exist
                   if [ -f package.json ]; then

@@ -173,10 +173,6 @@ export function assertAcyclic(nodes) {
 	for (const node of nodes) visit(node);
 }
 
-function versionFor(state, selectedEntry) {
-	return selectedEntry?.version || state.latestVersion || "0.0.0";
-}
-
 function dependencyCanUse(edge, dependencyVersion) {
 	if (edge.kind === "build") return true;
 	return constraintAllows(edge.constraint, dependencyVersion);
@@ -198,14 +194,25 @@ function orderedSelection(nodes, selected) {
 export function buildPlan({
 	nodes,
 	states,
-	targetSlug,
+	targetSlug = null,
+	targetSlugs = null,
 	targetVersion = null,
-	includeDependents = true,
 	force = false,
 }) {
-	const normalizedTarget = targetSlug.replace(/^builtnorth\//, "");
-	const target = nodes.find((node) => node.slug === normalizedTarget);
-	if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
+	const requestedSlugs = (targetSlugs || [targetSlug])
+		.filter(Boolean)
+		.map((slug) => slug.replace(/^builtnorth\//, ""));
+	if (!requestedSlugs.length) throw new Error("At least one release target is required");
+	if (targetVersion && requestedSlugs.length !== 1) {
+		throw new Error("--version can only be used with one release target");
+	}
+
+	const requested = requestedSlugs.map((slug) => {
+		const node = nodes.find((candidate) => candidate.slug === slug);
+		if (!node) throw new Error(`Unknown release target: ${slug}`);
+		return node;
+	});
+	const requestedSet = new Set(requested.map((node) => node.slug));
 
 	const selected = new Map();
 	const blockers = [];
@@ -225,90 +232,64 @@ export function buildPlan({
 		return selected.get(node.slug);
 	};
 
-	const addChangedDependencies = (consumer, trail = []) => {
-		for (const edge of consumer.dependencies) {
-			const dependency = edge.node;
-			const state = stateFor(dependency);
-			if (!state.changed) continue;
-			if (edge.kind === "build" && !state.buildChanged) continue;
-			if (trail.includes(dependency.slug)) continue;
-			addChangedDependencies(dependency, [...trail, consumer.slug]);
-			const entry = select(dependency, `changed dependency of ${consumer.slug}`);
-			if (!dependencyCanUse(edge, entry.version)) {
-				blockers.push(
-					`${consumer.slug} requires ${dependency.slug} ${edge.constraint}, which excludes planned ${entry.version}`,
-				);
-			}
+	for (const node of requested) {
+		const state = stateFor(node);
+		if (state.changed || force || targetVersion) {
+			select(
+				node,
+				"explicit target",
+				targetVersion && requested.length === 1 ? targetVersion : null,
+			);
 		}
-	};
-
-	addChangedDependencies(target);
-	const targetState = stateFor(target);
-	if (targetState.changed || force || targetVersion) {
-		select(target, "requested target", targetVersion);
 	}
 
-	const selectedTarget = selected.get(target.slug);
-	if (selectedTarget && target.slug === "polaris") {
-		for (const reverseEdge of target.dependents) {
+	for (const entry of selected.values()) {
+		for (const edge of entry.node.dependencies) {
+			const dependencyEntry = selected.get(edge.node.slug);
+			const dependencyState = stateFor(edge.node);
+			const dependencyVersion =
+				dependencyEntry?.version || dependencyState.latestVersion;
+
+			if (edge.kind !== "build" && !dependencyVersion) {
+				blockers.push(
+					`${entry.node.slug} requires ${edge.node.slug} ${edge.constraint}, but no released version is available`,
+				);
+				continue;
+			}
+
+			if (!dependencyCanUse(edge, dependencyVersion)) {
+				blockers.push(
+					`${entry.node.slug} requires ${edge.node.slug} ${edge.constraint}, which excludes ${dependencyEntry ? "planned" : "released"} ${dependencyVersion}`,
+				);
+			}
+
 			if (
-				reverseEdge.node.deployable &&
-				!dependencyCanUse(reverseEdge, selectedTarget.version)
+				edge.kind === "build" &&
+				dependencyEntry &&
+				stateFor(edge.node).buildChanged &&
+				!stateFor(entry.node).changed
 			) {
 				blockers.push(
-					`${reverseEdge.node.slug} requires polaris ${reverseEdge.constraint}, which excludes planned ${selectedTarget.version}`,
+					`${entry.node.slug} imports ${edge.node.slug}; rebuild and commit its production assets before release`,
 				);
 			}
 		}
-	}
 
-	if (includeDependents) {
-		const queue = [...selected.values()];
-		const traversed = new Set();
-		while (queue.length) {
-			const released = queue.shift();
-			const key = `${released.node.slug}@${released.version}`;
-			if (traversed.has(key)) continue;
-			traversed.add(key);
-
-			for (const reverseEdge of released.node.dependents) {
-				const consumer = reverseEdge.node;
-				if (
-					reverseEdge.kind === "build" &&
-					!stateFor(released.node).buildChanged
-				) {
-					continue;
-				}
-				if (!dependencyCanUse(reverseEdge, released.version)) continue;
-				const state = stateFor(consumer);
-
-				if (reverseEdge.kind === "build" && consumer.deployable && !state.changed) {
-					blockers.push(
-						`${consumer.slug} imports ${released.node.slug}; rebuild and commit its production assets before release`,
-					);
-					continue;
-				}
-
-				if (consumer.deployable || state.changed) {
-					const entry = select(
-						consumer,
-						consumer.deployable
-							? `bundles ${released.node.slug}`
-							: `changed dependent of ${released.node.slug}`,
-					);
-					queue.push(entry);
-				} else {
-					queue.push({
-						node: consumer,
-						version: versionFor(state, selected.get(consumer.slug)),
-					});
-				}
+		for (const reverseEdge of entry.node.dependents) {
+			if (
+				reverseEdge.kind !== "build" &&
+				!dependencyCanUse(reverseEdge, entry.version)
+			) {
+				blockers.push(
+					`${reverseEdge.node.slug} requires ${entry.node.slug} ${reverseEdge.constraint}, which excludes planned ${entry.version}`,
+				);
 			}
 		}
 	}
 
 	return {
-		target,
+		target: requested[0],
+		requested: requestedSet,
 		blockers: [...new Set(blockers)],
 		releases: orderedSelection(nodes, selected),
 	};
@@ -367,29 +348,35 @@ export function readRepositoryState(node) {
 
 function parseFlags(args) {
 	const flags = {
-		target: "",
+		targets: [],
 		catalog: DEFAULT_CATALOG,
 		workspace: path.resolve(
 			process.env.RUNNER_TEMP || process.cwd(),
 			"release-repositories",
 		),
 		version: null,
-		includeDependents: true,
 		force: false,
 		execute: false,
 	};
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index];
-		if (value === "--target") flags.target = args[++index];
+		if (value === "--target" || value === "--targets") {
+			flags.targets = args[++index]
+				.split(",")
+				.map((slug) => slug.trim())
+				.filter(Boolean);
+		}
 		else if (value === "--catalog") flags.catalog = path.resolve(args[++index]);
 		else if (value === "--workspace") flags.workspace = path.resolve(args[++index]);
 		else if (value === "--version") flags.version = args[++index].replace(/^v/, "");
-		else if (value === "--no-dependents") flags.includeDependents = false;
 		else if (value === "--force") flags.force = true;
 		else if (value === "--execute") flags.execute = true;
 		else throw new Error(`Unknown option: ${value}`);
 	}
-	if (!flags.target) throw new Error("--target is required");
+	if (!flags.targets.length) throw new Error("--targets is required");
+	if (flags.version && flags.targets.length !== 1) {
+		throw new Error("--version can only be used with one release target");
+	}
 	if (
 		flags.version &&
 		!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(flags.version)
@@ -460,6 +447,57 @@ async function waitForTag(node, tag) {
 	throw new Error(`Timed out waiting for ${node.slug} ${tag}`);
 }
 
+function prepareComposerIndex(workspace) {
+	const indexPath = path.join(workspace, "_composer-index");
+	if (!fs.existsSync(path.join(indexPath, ".git"))) {
+		console.log("Cloning builtnorth/composer release index...");
+		run("git", [
+			"clone",
+			"--filter=blob:none",
+			"--no-checkout",
+			"https://github.com/builtnorth/composer.git",
+			indexPath,
+		]);
+	}
+	return indexPath;
+}
+
+function composerIndexHasVersion(indexPath, packageName, version) {
+	git(indexPath, [
+		"fetch",
+		"--prune",
+		"origin",
+		"+refs/heads/main:refs/remotes/origin/main",
+	]);
+	const repository = JSON.parse(
+		git(indexPath, ["show", "origin/main:packages.json"]),
+	);
+	const records = repository.packages?.[packageName];
+	if (!records) return false;
+
+	const candidates = Array.isArray(records)
+		? records
+		: Object.entries(records).map(([key, record]) => ({ key, ...record }));
+	return candidates.some((record) => {
+		const candidate = String(
+			record.version || record.version_normalized || record.key || "",
+		).replace(/^v/, "");
+		return candidate === version || candidate === `${version}.0`;
+	});
+}
+
+async function waitForComposerIndex(indexPath, node, version) {
+	const packageName = `builtnorth/${node.slug}`;
+	const started = Date.now();
+	while (Date.now() - started < TAG_TIMEOUT_MS) {
+		if (composerIndexHasVersion(indexPath, packageName, version)) return;
+		await sleep(TAG_INTERVAL_MS);
+	}
+	throw new Error(
+		`Timed out waiting for ${packageName} ${version} in the private Composer index`,
+	);
+}
+
 function assertNotRateLimited(error) {
 	const detail = `${error.stdout || ""}\n${error.stderr || ""}\n${error.message || ""}`;
 	if (/\b(403|429)\b|secondary rate limit|rate limit exceeded/i.test(detail)) {
@@ -471,6 +509,10 @@ function assertNotRateLimited(error) {
 async function executePlan(plan) {
 	if (plan.blockers.length) throw new Error("Release plan has dependency blockers.");
 	if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required for --execute");
+	if (!plan.releases.length) return;
+	const composerIndex = prepareComposerIndex(
+		path.dirname(plan.releases[0]?.node.absolutePath || process.cwd()),
+	);
 
 	for (const entry of plan.releases) {
 		const { node, version } = entry;
@@ -533,13 +575,14 @@ async function executePlan(plan) {
 
 		console.log(`Waiting for ${node.slug} ${tag}...`);
 		await waitForTag(node, tag);
+		if (node.type !== "npm") {
+			console.log(`Waiting for builtnorth/${node.slug} ${version} in Composer...`);
+			await waitForComposerIndex(composerIndex, node, version);
+		}
 	}
 }
 
-function releaseCandidates(nodes, targetSlug, includeDependents) {
-	const slug = targetSlug.replace(/^builtnorth\//, "");
-	const target = nodes.find((node) => node.slug === slug);
-	if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
+function releaseCandidates(nodes, targetSlugs) {
 	const selected = new Set();
 
 	const addDependencies = (node) => {
@@ -547,23 +590,12 @@ function releaseCandidates(nodes, targetSlug, includeDependents) {
 		selected.add(node.slug);
 		for (const edge of node.dependencies) addDependencies(edge.node);
 	};
-	addDependencies(target);
 
-	if (includeDependents) {
-		const queue = [target];
-		const traversed = new Set();
-		while (queue.length) {
-			const node = queue.shift();
-			if (traversed.has(node.slug)) continue;
-			traversed.add(node.slug);
-			for (const edge of node.dependents) {
-				selected.add(edge.node.slug);
-				queue.push(edge.node);
-			}
-		}
-		for (const node of nodes) {
-			if (selected.has(node.slug)) addDependencies(node);
-		}
+	for (const targetSlug of targetSlugs) {
+		const slug = targetSlug.replace(/^builtnorth\//, "");
+		const target = nodes.find((node) => node.slug === slug);
+		if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
+		addDependencies(target);
 	}
 
 	return nodes.filter((node) => selected.has(node.slug));
@@ -602,11 +634,7 @@ function prepareRepositories(nodes, workspace) {
 async function main() {
 	const flags = parseFlags(process.argv.slice(2));
 	const graph = loadGraph(flags.catalog);
-	const candidates = releaseCandidates(
-		graph.nodes,
-		flags.target,
-		flags.includeDependents,
-	);
+	const candidates = releaseCandidates(graph.nodes, flags.targets);
 	prepareRepositories(candidates, flags.workspace);
 	const states = Object.fromEntries(
 		candidates.map((node) => [node.slug, readRepositoryState(node)]),
@@ -614,9 +642,8 @@ async function main() {
 	const plan = buildPlan({
 		nodes: graph.nodes,
 		states,
-		targetSlug: flags.target,
+		targetSlugs: flags.targets,
 		targetVersion: flags.version,
-		includeDependents: flags.includeDependents,
 		force: flags.force,
 	});
 	printPlan(plan);

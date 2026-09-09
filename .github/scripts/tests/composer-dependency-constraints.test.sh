@@ -5,7 +5,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIXTURE_DIR="$(mktemp -d)"
 VERIFY_DIR="$(mktemp -d)"
 export COMPOSER_ROOT_VERSION="1.0.0"
+export COMPOSER_HOME="${FIXTURE_DIR}/composer-home"
+export BUILTNORTH_COMPOSER_INDEX_URL="file://${FIXTURE_DIR}/composer-index"
 trap 'rm -rf "$FIXTURE_DIR" "$VERIFY_DIR"' EXIT
+
+mkdir -p "${FIXTURE_DIR}/composer-index"
+printf '{"packages":{}}\n' >"${FIXTURE_DIR}/composer-index/packages.json"
 
 cat >"${FIXTURE_DIR}/composer.json" <<'JSON'
 {
@@ -20,7 +25,7 @@ cat >"${FIXTURE_DIR}/composer.json" <<'JSON'
 }
 JSON
 
-before="$(jq -c '.require' "${FIXTURE_DIR}/composer.json")"
+before="$(jq -c '.' "${FIXTURE_DIR}/composer.json")"
 
 (
 	cd "$FIXTURE_DIR"
@@ -29,7 +34,7 @@ before="$(jq -c '.require' "${FIXTURE_DIR}/composer.json")"
 	bash "${SCRIPT_DIR}/pin-builtnorth-composer-deps.sh" validate
 )
 
-after="$(jq -c '.require' "${FIXTURE_DIR}/composer.json")"
+after="$(jq -c '.' "${FIXTURE_DIR}/composer.json")"
 
 if [ "$before" != "$after" ]; then
 	echo "FAIL: dependency preparation changed committed constraints." >&2
@@ -37,19 +42,10 @@ if [ "$before" != "$after" ]; then
 	exit 1
 fi
 
-configured_url="$(jq -r '
-	.repositories
-	| if type == "array" then
-		.[]
-	else
-		.[]
-	end
-	| select(.url | endswith("/job-dispatcher.git"))
-	| .url
-' "${FIXTURE_DIR}/composer.json")"
+configured_url="$(jq -r '.repositories.builtnorth.url' "${COMPOSER_HOME}/config.json")"
 
-if [ "$configured_url" != "https://github.com/builtnorth/job-dispatcher.git" ]; then
-	echo "FAIL: expected the declared dependency VCS repository to be configured." >&2
+if [ "$configured_url" != "$BUILTNORTH_COMPOSER_INDEX_URL" ]; then
+	echo "FAIL: expected the private Composer index to be configured globally." >&2
 	exit 1
 fi
 

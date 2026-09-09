@@ -23,16 +23,9 @@
     {
       "slug": "wp-portability",
       "type": "composer",
-      "dependencies": [
-        ["job-dispatcher", "composer", "^2.0"],
-        ["job-dispatcher", "build", "*"]
-      ]
-    },
-    {
-      "slug": "polaris-ai",
-      "type": "composer",
       "dependencies": [["job-dispatcher", "composer", "^2.0"]]
     },
+    { "slug": "polaris-ai", "type": "composer" },
     { "slug": "charts", "type": "npm" },
     { "slug": "wp-component-library", "type": "npm" },
     { "slug": "ui-kit", "type": "npm" },
@@ -51,11 +44,12 @@
       "type": "composer",
       "dependencies": [
         ["extended-cpts-extras", "composer", "^1.2"],
-        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris-ai", "composer", "^2.0"],
         ["polaris-controls", "composer", "^1.0"],
         ["polaris-integrations-lib", "composer", "^1.2"],
         ["wp-baseline", "composer", "^3.3"],
         ["wp-environment-indicator", "composer", "^1.0"],
+        ["wp-portability", "composer", "^2.0"],
         ["wp-utility", "composer", "^2.4"],
         ["charts", "build", "*"],
         ["wp-component-library", "build", "*"]
@@ -65,34 +59,26 @@
       "slug": "polaris-analytics",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.2"],
-        ["wp-portability", "composer", "^1.1"],
-        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris", "composer", "^2.4"],
         ["charts", "build", "*"],
         ["wp-component-library", "build", "*"],
-        ["polaris", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["polaris", "build", "*"]
       ]
     },
     {
       "slug": "polaris-backup",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.2"],
-        ["wp-portability", "composer", "^1.1"],
-        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris", "composer", "^2.4"],
         ["polaris", "build", "*"],
-        ["job-dispatcher", "build", "*"],
-        ["wp-component-library", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["wp-component-library", "build", "*"]
       ]
     },
     {
       "slug": "polaris-blocks",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.3"],
-        ["polaris-ai", "composer", "^1.2"],
+        ["polaris", "composer", "^2.4"],
         ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"],
         ["wp-blocks", "build", "*"],
@@ -111,8 +97,7 @@
       "slug": "polaris-directory",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.2"],
-        ["polaris-ai", "composer", "^1.2"],
+        ["polaris", "composer", "^2.4"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
         ["polaris", "build", "*"]
@@ -122,67 +107,50 @@
       "slug": "polaris-forms",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.3"],
-        ["polaris-ai", "composer", "^1.2"],
-        ["wp-portability", "composer", "^1.1"],
+        ["polaris", "composer", "^2.4"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
-        ["polaris", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["polaris", "build", "*"]
       ]
     },
     {
       "slug": "polaris-performance",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.3"],
-        ["wp-portability", "composer", "^1.1"],
+        ["polaris", "composer", "^2.4"],
         ["charts", "build", "*"],
         ["polaris", "build", "*"],
-        ["job-dispatcher", "build", "*"],
-        ["wp-component-library", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["wp-component-library", "build", "*"]
       ]
     },
     {
       "slug": "polaris-reviews",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.3"],
-        ["polaris-ai", "composer", "^1.2"],
-        ["wp-portability", "composer", "^1.1"],
+        ["polaris", "composer", "^2.4"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
-        ["polaris", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["polaris", "build", "*"]
       ]
     },
     {
       "slug": "polaris-security",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.2"],
-        ["wp-portability", "composer", "^1.1"],
-        ["job-dispatcher", "composer", "^1.1"],
-        ["polaris", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["polaris", "composer", "^2.4"],
+        ["polaris", "build", "*"]
       ]
     },
     {
       "slug": "polaris-seo",
       "type": "plugin",
       "dependencies": [
-        ["polaris", "composer", "^2.3"],
-        ["polaris-ai", "composer", "^1.2"],
+        ["polaris", "composer", "^2.4"],
         ["wp-schema", "composer", "^1.3"],
-        ["wp-portability", "composer", "^1.1"],
-        ["job-dispatcher", "composer", "^1.1"],
         ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
-        ["polaris", "build", "*"],
-        ["job-dispatcher", "build", "*"],
-        ["wp-portability", "build", "*"]
+        ["polaris", "build", "*"]
       ]
     },
     {
