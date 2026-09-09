@@ -81,7 +81,7 @@ jobs:
     ci:
         needs: preflight
         if: needs.preflight.outputs.already_released != 'true' && inputs.run-ci
-        uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@5634494f26edb54bbc77716b09ed298e52e633c0
+        uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@main
         with:
             composer-repository-profile: ${{ inputs.composer-repository-profile }}
         secrets:
