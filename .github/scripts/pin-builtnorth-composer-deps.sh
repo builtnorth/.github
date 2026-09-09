@@ -27,19 +27,39 @@ get_latest_stable_tag() {
 	local repo="$1"
 	local tag
 	local remote="https://github.com/${ORG}/${repo}.git"
+	local err
+	err="$(mktemp)"
 
-	if [ -n "${GITHUB_AUTH_TOKEN}" ]; then
-		remote="https://x-access-token:${GITHUB_AUTH_TOKEN}@github.com/${ORG}/${repo}.git"
+	if [ -z "${GITHUB_AUTH_TOKEN}" ]; then
+		echo "ERROR: No GH_TOKEN/COMPOSER_AUTH available to read private tags for ${ORG}/${repo}." >&2
+		echo "" >&2
+		return 1
 	fi
 
-	# Use git ls-remote (not gh REST API) to avoid rate limits during release cascades.
-	tag=$(git ls-remote --tags "${remote}" 'v*' 2>/dev/null \
+	remote="https://x-access-token:${GITHUB_AUTH_TOKEN}@github.com/${ORG}/${repo}.git"
+
+	# Use git ls-remote (not gh REST API) to avoid Actions secondary rate limits.
+	# Do not hide stderr — empty output with an auth error must be visible.
+	tag=$(git ls-remote --tags "${remote}" 'v*' 2>"${err}" \
 		| sed 's/.*refs\/tags\///' \
 		| sed 's/\^{}//' \
 		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
 		| sort -t. -k1.2n -k2n -k3n \
-		| tail -1)
+		| tail -1 || true)
 
+	if [ -z "$tag" ]; then
+		echo "ERROR: No stable tag visible for ${ORG}/${repo}." >&2
+		if [ -s "${err}" ]; then
+			echo "ERROR: git ls-remote stderr:" >&2
+			sed 's/x-access-token:[^@]*@/x-access-token:***@/g' "${err}" >&2
+		fi
+		echo "ERROR: For private repos GH_TOKEN must be a PAT/org token that can read ${ORG}/${repo} (github.token from another repo is not enough)." >&2
+		rm -f "${err}"
+		echo ""
+		return 0
+	fi
+
+	rm -f "${err}"
 	echo "$tag"
 }
 

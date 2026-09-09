@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Configure Composer VCS repositories for the package being built/released.
 #
-# Default profile "from-composer" registers ONLY:
-#   1) vcs/git entries already declared in this package's composer.json
-#   2) a GitHub VCS mirror for every builtnorth/* require / require-dev
+# Default profile "from-composer" registers ONLY mirrors needed for packages
+# this manifest actually requires (require + require-dev):
+#   - builtnorth/* → https://github.com/builtnorth/<slug>.git
+#   - other packages that already have a matching vcs/git entry in repositories
 #
-# That avoids the old kitchen-sink "full" list, which forced Composer to
-# authenticate against unrelated private repos during composer update.
+# It does NOT re-add orphan kitchen-sink repositories left over from older
+# release runs (those used to poison composer.json and force auth against
+# unrelated private repos).
 #
 # Profiles:
-#   from-composer (default) — derive from this package's composer.json
+#   from-composer (default) — derive from required packages only
 #   coding-standards-only   — only builtnorth/coding-standards
 #   full                    — legacy kitchen-sink (escape hatch only)
 #
@@ -33,12 +35,6 @@ register_url() {
 	fi
 	composer config "repositories.${key}" vcs "$url" 2>/dev/null || true
 	echo "  repositories.${key} → ${url}"
-}
-
-repo_key_from_url() {
-	local url="$1"
-	# https://github.com/org/repo.git → repo
-	echo "$url" | sed -E 's#\.git$##' | sed -E 's#.*/##'
 }
 
 register_kitchen_sink() {
@@ -70,39 +66,44 @@ register_kitchen_sink() {
 	done
 }
 
-# Emit "key<TAB>url" lines for every VCS mirror this package needs.
+# Emit "key<TAB>url" for every required package that needs a VCS mirror.
+# Intentionally ignores orphan entries in .repositories that are not required.
 collect_from_composer_pairs() {
-	jq -r '
-		def repo_key($url):
-			($url | sub("\\.git$"; "") | split("/") | last);
+	jq -r --arg org "$ORG" '
+		def required_pkgs:
+			((.require // {}) + (.["require-dev"] // {})) | keys;
 
-		[
-			(
+		def vcs_urls:
+			[
 				(.repositories // {})
 				| if type == "array" then .[] else .[] end
 				| select((.type == "vcs") or (.type == "git"))
 				| select((.url // "") != "")
-				| [repo_key(.url), .url]
-			),
-			(
-				((.require // {}) + (.["require-dev"] // {}))
-				| to_entries[]
-				| select(.key | startswith("builtnorth/"))
-				| .key as $pkg
-				| ($pkg | sub("^builtnorth/"; "")) as $repo
-				| [$repo, ("https://github.com/" + env.ORG + "/" + $repo + ".git")]
-			)
-		]
-		| .[]
+				| .url
+			];
+
+		def repo_key($url):
+			($url | sub("\\.git$"; "") | split("/") | last);
+
+		. as $root
+		| required_pkgs[] as $pkg
+		| if ($pkg | startswith("builtnorth/")) then
+				($pkg | sub("^builtnorth/"; "")) as $repo
+				| [$repo, ("https://github.com/" + $org + "/" + $repo + ".git")]
+			else
+				# Keep an existing VCS URL only when it clearly matches this package
+				# (repo name equals the package short name).
+				($pkg | split("/") | last) as $short
+				| (vcs_urls | map(select(repo_key(.) == $short)) | .[0] // empty) as $url
+				| if ($url | length) > 0 then [$short, $url] else empty end
+			end
 		| @tsv
 	' composer.json
 }
 
 register_from_composer() {
-	# Rewrite repositories to exactly the derived set (drops leftover numeric
-	# keys from array-form composer.json; never adds unrelated private repos).
 	local pairs tmp seen key url
-	pairs=$(ORG="$ORG" collect_from_composer_pairs || true)
+	pairs=$(collect_from_composer_pairs || true)
 
 	composer config --unset repositories 2>/dev/null || true
 
