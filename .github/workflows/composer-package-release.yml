@@ -38,6 +38,21 @@ on:
                 required: false
                 type: boolean
                 default: true
+            run-coverage:
+                description: "Run code coverage during release CI"
+                required: false
+                type: boolean
+                default: true
+            run-phpcs:
+                description: "Run PHP CodeSniffer during release CI"
+                required: false
+                type: boolean
+                default: true
+            run-phpcompat:
+                description: "Run PHP Compatibility check during release CI"
+                required: false
+                type: boolean
+                default: true
         secrets:
             WORKFLOW_TOKEN:
                 required: false
@@ -84,6 +99,9 @@ jobs:
         uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@main
         with:
             composer-repository-profile: ${{ inputs.composer-repository-profile }}
+            run-coverage: ${{ inputs.run-coverage }}
+            run-phpcs: ${{ inputs.run-phpcs }}
+            run-phpcompat: ${{ inputs.run-phpcompat }}
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
             WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
