@@ -48,7 +48,7 @@ jobs:
     ci:
         needs: preflight
         if: needs.preflight.outputs.already_released != 'true'
-        uses: builtnorth/.github/.github/workflows/wp-plugin-ci.yml@987029ffa7bf6ed241b2c6572426f8863ecc1ad2
+        uses: builtnorth/.github/.github/workflows/wp-plugin-ci.yml@main
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 
