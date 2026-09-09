@@ -22,9 +22,11 @@ register_index() {
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
 
 	if [ -n "$token" ]; then
-		# Auth is still needed for dist downloads from private plugin/package repos
-		# (github.com release assets and api.github.com zipballs).
-		composer config --global --auth github-oauth.api.github.com "$token"
+		# github-oauth is only sent for api.github.com URLs. Private GitHub
+		# release zips (github.com/.../releases/download/...) need http-basic
+		# with username x-access-token or GitHub returns 404, not 401.
+		composer config --global --auth github-oauth.github.com "$token"
+		composer config --global --auth http-basic.github.com x-access-token "$token"
 	fi
 
 	echo "  repositories.builtnorth → ${INDEX_URL}"
