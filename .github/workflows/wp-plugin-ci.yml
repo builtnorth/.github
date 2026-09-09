@@ -136,12 +136,12 @@ jobs:
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -209,12 +209,12 @@ jobs:
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -257,12 +257,12 @@ jobs:
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -304,12 +304,12 @@ jobs:
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -319,7 +319,7 @@ jobs:
 
       - name: Run security check for PHP dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}"}}'
         run: |
           composer require --dev roave/security-advisories:dev-latest
           composer audit --abandoned=report
