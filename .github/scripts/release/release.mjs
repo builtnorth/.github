@@ -435,6 +435,65 @@ function sleep(milliseconds) {
 	return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+/**
+ * Resolve the most-recent GitHub Actions run ID for a workflow dispatch on
+ * a given repo/ref that was created *after* `dispatchedAt`.  Returns null
+ * when the run cannot be found within a short window (first ~90 s).
+ */
+async function findRunId(repo, ref, dispatchedAt) {
+	const cutoff = new Date(dispatchedAt - 10_000).toISOString(); // 10 s grace
+	const started = Date.now();
+	while (Date.now() - started < 120_000) {
+		try {
+			const raw = run("gh", [
+				"api",
+				`repos/${repo}/actions/workflows/release.yml/runs`,
+				"--jq",
+				`.workflow_runs[]
+				 | select(.head_branch == "${ref}" and .created_at >= "${cutoff}")
+				 | .id`,
+			]);
+			const ids = raw.trim().split("\n").filter(Boolean).map(Number);
+			if (ids.length) return String(Math.max(...ids));
+		} catch {
+			// transient; keep trying
+		}
+		await sleep(15_000);
+	}
+	return null;
+}
+
+/**
+ * Poll a GitHub Actions run until it completes or times out.
+ * Throws if the run concludes as a failure so the release loop stops
+ * immediately rather than waiting the full TAG_TIMEOUT_MS.
+ */
+async function waitForRun(repo, runId) {
+	const started = Date.now();
+	while (Date.now() - started < TAG_TIMEOUT_MS) {
+		try {
+			const raw = run("gh", [
+				"api",
+				`repos/${repo}/actions/runs/${runId}`,
+				"--jq",
+				'[.status, .conclusion] | join(":")',
+			]);
+			const [status, conclusion] = raw.trim().split(":");
+			if (status === "completed") {
+				if (conclusion === "success") return;
+				throw new Error(
+					`GitHub Actions run ${runId} for ${repo} completed with ${conclusion}.`,
+				);
+			}
+		} catch (error) {
+			// Re-throw our own conclusion errors; swallow transient API errors.
+			if (error.message.startsWith("GitHub Actions run")) throw error;
+		}
+		await sleep(TAG_INTERVAL_MS);
+	}
+	throw new Error(`Timed out waiting for run ${runId} on ${repo}`);
+}
+
 async function waitForTag(node, tag) {
 	const started = Date.now();
 	while (Date.now() - started < TAG_TIMEOUT_MS) {
@@ -573,8 +632,26 @@ async function executePlan(plan) {
 			assertNotRateLimited(error);
 		}
 
+		const dispatchedAt = Date.now();
 		console.log(`Waiting for ${node.slug} ${tag}...`);
-		await waitForTag(node, tag);
+
+		// Locate the dispatched run so we can detect failures early.
+		const runId = await findRunId(node.repo, node.releaseBranch, dispatchedAt);
+		if (runId) {
+			console.log(`  Tracking run ${runId} on ${node.repo}...`);
+			// Race: if the run fails, throw immediately; if the tag appears first,
+			// waitForRun stays in the background until it naturally completes.
+			await Promise.race([
+				waitForRun(node.repo, runId),
+				waitForTag(node, tag),
+			]);
+			// Ensure the run actually succeeded (covers the case waitForTag won).
+			await waitForRun(node.repo, runId);
+		} else {
+			console.log(`  Could not locate dispatched run — falling back to tag polling.`);
+			await waitForTag(node, tag);
+		}
+
 		if (node.type !== "npm") {
 			console.log(`Waiting for builtnorth/${node.slug} ${version} in Composer...`);
 			await waitForComposerIndex(composerIndex, node, version);
