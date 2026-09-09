@@ -179,11 +179,10 @@ jobs:
       - name: Record release source commit
         run: echo "RELEASE_SOURCE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Configure GitHub Packages auth
-        run: |
-          echo "@builtnorth:registry=https://npm.pkg.github.com" >> .npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}" >> .npmrc
-          echo "@polaris:registry=https://npm.pkg.github.com" >> .npmrc
+      # Install from the public npm registry by default. Private @builtnorth
+      # packages that only exist on GitHub Packages are resolved when a caller
+      # provides package-read credentials; do not force github.token here —
+      # GITHUB_TOKEN cannot read packages published by sibling repos.
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
