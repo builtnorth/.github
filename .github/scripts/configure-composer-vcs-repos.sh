@@ -33,22 +33,16 @@ register_index() {
 		# github.com — dist.url entries for plugins use direct release download URLs.
 		composer config --global --auth http-basic.github.com x-access-token "$token"
 
-		# Export a merged COMPOSER_AUTH so any downstream step that sets its own
-		# COMPOSER_AUTH env var also carries these http-basic entries. Without this,
-		# COMPOSER_AUTH overwrites auth.json at runtime and the index fetch fails.
-		MERGED_AUTH="$(jq -n \
+		# Build a single-line JSON with all auth domains. COMPOSER_AUTH env var
+		# overrides auth.json at runtime, so downstream steps must carry all
+		# domains — not just github-oauth.
+		MERGED_AUTH="$(jq -cn \
 			--arg token "$token" \
-			'{
-				"github-oauth": {"github.com": $token},
-				"http-basic": {
-					"raw.githubusercontent.com": {"username": "x-access-token", "password": $token},
-					"api.github.com":            {"username": "x-access-token", "password": $token},
-					"github.com":                {"username": "x-access-token", "password": $token}
-				}
-			}')"
+			'{"github-oauth":{"github.com":$token},"http-basic":{"raw.githubusercontent.com":{"username":"x-access-token","password":$token},"api.github.com":{"username":"x-access-token","password":$token},"github.com":{"username":"x-access-token","password":$token}}}')"
 		export COMPOSER_AUTH="$MERGED_AUTH"
 
 		# Propagate to subsequent GitHub Actions steps via GITHUB_ENV if available.
+		# GITHUB_ENV requires single-line values; jq -c above guarantees that.
 		if [ -n "${GITHUB_ENV:-}" ]; then
 			printf 'COMPOSER_AUTH=%s\n' "$MERGED_AUTH" >> "$GITHUB_ENV"
 		fi
