@@ -286,15 +286,16 @@ jobs:
             - name: Generate changelog
               id: changelog
               run: |
-                  # Get the previous tag
-                  PREVIOUS_TAG=$(git describe --tags --abbrev=0 ${{ steps.version.outputs.version }}^ 2>/dev/null || echo "")
+                  CURRENT="${{ steps.version.outputs.version }}"
+                  # Skip the tag we just created (annotated tags break `git describe TAG^`).
+                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF "$CURRENT" | sed -n '1p' || true)
 
                   if [ -z "$PREVIOUS_TAG" ]; then
                     echo "No previous tag found, including all commits"
                     COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
                   else
-                    echo "Generating changelog from $PREVIOUS_TAG to ${{ steps.version.outputs.version }}"
-                    COMMITS=$(git log ${PREVIOUS_TAG}..${{ steps.version.outputs.version }} --pretty=format:"- %s (%h)" --reverse)
+                    echo "Generating changelog from $PREVIOUS_TAG to HEAD ($CURRENT)"
+                    COMMITS=$(git log "${PREVIOUS_TAG}"..HEAD --pretty=format:"- %s (%h)" --reverse)
                   fi
 
                   # Format changelog

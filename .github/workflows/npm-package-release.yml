@@ -252,17 +252,16 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          # Get the previous tag
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '1p' || echo "")
+          CURRENT="${{ steps.version.outputs.VERSION_TAG }}"
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF "$CURRENT" | sed -n '1p' || true)
 
           if [ -z "$PREVIOUS_TAG" ]; then
             echo "No previous tag found, this is the first release"
             PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
           fi
 
-          echo "Comparing changes from $PREVIOUS_TAG to HEAD"
+          echo "Comparing changes from $PREVIOUS_TAG to HEAD ($CURRENT)"
 
-          # Generate commits (allow empty result)
           COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
 
           # Group commits by type. Matches plain (fix:), scoped (fix(auth):),
