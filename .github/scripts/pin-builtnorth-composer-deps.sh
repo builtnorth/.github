@@ -26,21 +26,17 @@ GITHUB_AUTH_TOKEN="$(resolve_github_token)"
 get_latest_stable_tag() {
 	local repo="$1"
 	local tag
-	local remote="https://github.com/${ORG}/${repo}.git"
 	local err
+	# Plain github.com URL on purpose. Create Release configures
+	# url.insteadOf with POLARIS_PLUGIN_GITHUB_TOKEN before this runs.
+	# Embedding x-access-token:${GH_TOKEN}@ here broke private tag lookup when
+	# GH_TOKEN was the workflow github.token fallback (or differed from insteadOf).
+	local remote="https://github.com/${ORG}/${repo}.git"
 	err="$(mktemp)"
 
-	if [ -z "${GITHUB_AUTH_TOKEN}" ]; then
-		echo "ERROR: No GH_TOKEN/COMPOSER_AUTH available to read private tags for ${ORG}/${repo}." >&2
-		echo "" >&2
-		return 1
-	fi
-
-	remote="https://x-access-token:${GITHUB_AUTH_TOKEN}@github.com/${ORG}/${repo}.git"
-
 	# Use git ls-remote (not gh REST API) to avoid Actions secondary rate limits.
-	# Do not hide stderr — empty output with an auth error must be visible.
-	tag=$(git ls-remote --tags "${remote}" 'v*' 2>"${err}" \
+	# Prefer refs/tags/v* so the pattern matches full ref names.
+	tag=$(git ls-remote --tags "${remote}" 'refs/tags/v*' 2>"${err}" \
 		| sed 's/.*refs\/tags\///' \
 		| sed 's/\^{}//' \
 		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
@@ -48,12 +44,14 @@ get_latest_stable_tag() {
 		| tail -1 || true)
 
 	if [ -z "$tag" ]; then
-		echo "ERROR: No stable tag visible for ${ORG}/${repo}." >&2
+		echo "ERROR: No stable tag visible for ${ORG}/${repo} via ${remote}." >&2
 		if [ -s "${err}" ]; then
 			echo "ERROR: git ls-remote stderr:" >&2
 			sed 's/x-access-token:[^@]*@/x-access-token:***@/g' "${err}" >&2
+		else
+			echo "ERROR: ls-remote returned no matching tags (and no git error)." >&2
+			echo "ERROR: If this repo is private, confirm url.insteadOf was configured with POLARIS_PLUGIN_GITHUB_TOKEN before pin." >&2
 		fi
-		echo "ERROR: For private repos GH_TOKEN must be a PAT/org token that can read ${ORG}/${repo} (github.token from another repo is not enough)." >&2
 		rm -f "${err}"
 		echo ""
 		return 0
