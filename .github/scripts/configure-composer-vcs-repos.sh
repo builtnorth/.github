@@ -5,11 +5,9 @@
 # packages. Project composer.json files declare dependencies only; CI injects
 # repository configuration globally on its ephemeral runner.
 #
-# Auth strategy: COMPOSER_AUTH env var always overrides auth.json at runtime.
-# We therefore write ALL auth domains into auth.json via `composer config --global --auth`
-# AND export an updated COMPOSER_AUTH that includes all domains so downstream
-# steps (which set their own COMPOSER_AUTH) don't silently lose the credentials
-# we configure here.
+# Auth strategy: use github-oauth for all GitHub domains. Composer natively
+# understands github-oauth for github.com, raw.githubusercontent.com, and
+# api.github.com — no http-basic needed, no conflict warnings.
 set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
@@ -27,23 +25,19 @@ register_index() {
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
 
 	if [ -n "$token" ]; then
-		# Write all auth domains to global auth.json.
-		composer config --global --auth http-basic.raw.githubusercontent.com x-access-token "$token"
-		composer config --global --auth http-basic.api.github.com x-access-token "$token"
-		# github.com — dist.url entries for plugins use direct release download URLs.
-		composer config --global --auth http-basic.github.com x-access-token "$token"
+		# Register the token as github-oauth for all GitHub-served domains.
+		# github-oauth is Composer's native auth type for GitHub; it works for
+		# github.com, raw.githubusercontent.com, and api.github.com without
+		# conflict warnings. http-basic is not needed.
+		composer config --global --auth github-oauth.raw.githubusercontent.com "$token"
+		composer config --global --auth github-oauth.api.github.com "$token"
 
-		# Build a single-line JSON with all auth domains. COMPOSER_AUTH env var
-		# overrides auth.json at runtime, so downstream steps must carry all
-		# domains — not just github-oauth.
-		MERGED_AUTH="$(jq -cn \
-			--arg token "$token" \
-			'{"github-oauth":{"github.com":$token},"http-basic":{"raw.githubusercontent.com":{"username":"x-access-token","password":$token},"api.github.com":{"username":"x-access-token","password":$token},"github.com":{"username":"x-access-token","password":$token}}}')"
-		export COMPOSER_AUTH="$MERGED_AUTH"
-
-		# Propagate to subsequent GitHub Actions steps via GITHUB_ENV if available.
-		# GITHUB_ENV requires single-line values; jq -c above guarantees that.
+		# Propagate updated auth to subsequent steps. GITHUB_ENV requires
+		# single-line values; jq -c guarantees compact output.
 		if [ -n "${GITHUB_ENV:-}" ]; then
+			MERGED_AUTH="$(jq -cn \
+				--arg token "$token" \
+				'{"github-oauth":{"github.com":$token,"raw.githubusercontent.com":$token,"api.github.com":$token}}')"
 			printf 'COMPOSER_AUTH=%s\n' "$MERGED_AUTH" >> "$GITHUB_ENV"
 		fi
 	fi
