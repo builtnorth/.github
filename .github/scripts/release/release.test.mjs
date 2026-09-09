@@ -80,7 +80,7 @@ test("changed dependencies are never released unless explicitly selected", () =>
 test("catalog provides the release graph without Basecamp paths", () => {
 	const graph = loadGraph();
 	const dispatcher = graph.nodes.find((node) => node.slug === "job-dispatcher");
-	assert.equal(graph.nodes.length, 32);
+	assert.equal(graph.nodes.length, 33);
 	assert.deepEqual(
 		dispatcher.dependencies.map((edge) => edge.node.slug),
 		["instant-actions"],

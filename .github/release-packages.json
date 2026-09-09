@@ -33,8 +33,8 @@
       "slug": "wp-blocks",
       "type": "npm",
       "dependencies": [
-        ["ui-kit", "npm", "1.5.0"],
-        ["wp-component-library", "npm", "1.2.5"],
+        ["ui-kit", "npm", "^1.5.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"]
       ]
@@ -51,7 +51,9 @@
         ["wp-environment-indicator", "composer", "^1.0"],
         ["wp-portability", "composer", "^2.0"],
         ["wp-utility", "composer", "^2.4"],
+        ["charts", "npm", "^1.3.0"],
         ["charts", "build", "*"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"]
       ]
     },
@@ -60,7 +62,9 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["charts", "npm", "^1.3.0"],
         ["charts", "build", "*"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"],
         ["polaris", "build", "*"]
       ]
@@ -71,6 +75,7 @@
       "dependencies": [
         ["polaris", "composer", "^2.4"],
         ["polaris", "build", "*"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"]
       ]
     },
@@ -79,6 +84,9 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["ui-kit", "npm", "^1.5.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
+        ["wp-blocks", "npm", "^1.0.7"],
         ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"],
         ["wp-blocks", "build", "*"],
@@ -98,6 +106,8 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["ui-kit", "npm", "^1.5.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
         ["polaris", "build", "*"]
@@ -108,6 +118,9 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["charts", "npm", "^1.3.0"],
+        ["ui-kit", "npm", "^1.5.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
@@ -119,8 +132,10 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["charts", "npm", "^1.3.0"],
         ["charts", "build", "*"],
         ["polaris", "build", "*"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"]
       ]
     },
@@ -129,6 +144,8 @@
       "type": "plugin",
       "dependencies": [
         ["polaris", "composer", "^2.4"],
+        ["ui-kit", "npm", "^1.5.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["ui-kit", "build", "*"],
         ["wp-component-library", "build", "*"],
         ["polaris", "build", "*"]
@@ -148,6 +165,8 @@
       "dependencies": [
         ["polaris", "composer", "^2.4"],
         ["wp-schema", "composer", "^1.3"],
+        ["charts", "npm", "^1.3.0"],
+        ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
         ["polaris", "build", "*"]
@@ -167,6 +186,11 @@
         ["polaris", "composer", "^2.2"],
         ["theme-skin-switcher", "composer", "*"]
       ]
+    },
+    {
+      "slug": "compass-waas-trades",
+      "type": "theme",
+      "dependencies": [["polaris", "build", "*"]]
     }
   ]
 }
