@@ -494,17 +494,6 @@ async function waitForRun(repo, runId) {
 	throw new Error(`Timed out waiting for run ${runId} on ${repo}`);
 }
 
-async function waitForTag(node, tag) {
-	const started = Date.now();
-	while (Date.now() - started < TAG_TIMEOUT_MS) {
-		const commit = remoteTagCommit(node, tag);
-		if (commit) {
-			return;
-		}
-		await sleep(TAG_INTERVAL_MS);
-	}
-	throw new Error(`Timed out waiting for ${node.slug} ${tag}`);
-}
 
 function prepareComposerIndex(workspace) {
 	const indexPath = path.join(workspace, "_composer-index");
@@ -633,24 +622,19 @@ async function executePlan(plan) {
 		}
 
 		const dispatchedAt = Date.now();
-		console.log(`Waiting for ${node.slug} ${tag}...`);
+		console.log(`Dispatched ${node.slug} ${tag} — locating run...`);
 
-		// Locate the dispatched run so we can detect failures early.
+		// Locate the dispatched run ID (waits up to 2 min for it to appear).
 		const runId = await findRunId(node.repo, node.releaseBranch, dispatchedAt);
-		if (runId) {
-			console.log(`  Tracking run ${runId} on ${node.repo}...`);
-			// Race: if the run fails, throw immediately; if the tag appears first,
-			// waitForRun stays in the background until it naturally completes.
-			await Promise.race([
-				waitForRun(node.repo, runId),
-				waitForTag(node, tag),
-			]);
-			// Ensure the run actually succeeded (covers the case waitForTag won).
-			await waitForRun(node.repo, runId);
-		} else {
-			console.log(`  Could not locate dispatched run — falling back to tag polling.`);
-			await waitForTag(node, tag);
+		if (!runId) {
+			throw new Error(
+				`Could not locate the dispatched Actions run for ${node.slug} ${tag}. ` +
+				`Check ${node.repo} Actions manually.`,
+			);
 		}
+
+		console.log(`  Tracking run ${runId} — waiting for completion...`);
+		await waitForRun(node.repo, runId);
 
 		if (node.type !== "npm") {
 			console.log(`Waiting for builtnorth/${node.slug} ${version} in Composer...`);
