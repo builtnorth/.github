@@ -1,13 +1,9 @@
 #!/usr/bin/env bash
 # Configure first-party package resolution without mutating the project manifest.
 #
-# The private Composer index is the single source for released builtnorth/*
-# packages. Project composer.json files declare dependencies only; CI injects
-# repository configuration globally on its ephemeral runner.
-#
-# Auth strategy: use github-oauth for all GitHub domains. Composer natively
-# understands github-oauth for github.com, raw.githubusercontent.com, and
-# api.github.com — no http-basic needed, no conflict warnings.
+# The private Composer index (builtnorth/composer) is public — packages.json
+# contains only package names, versions, and release download URLs, no secrets.
+# Auth is only needed for the actual dist downloads from private plugin repos.
 set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
@@ -22,24 +18,13 @@ register_index() {
 		token="$(printf '%s' "$auth" | jq -r '.["github-oauth"]["github.com"] // empty')"
 	fi
 
+	# The index itself is public — no auth needed to fetch packages.json.
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
 
 	if [ -n "$token" ]; then
-		# Register the token as github-oauth for all GitHub-served domains.
-		# github-oauth is Composer's native auth type for GitHub; it works for
-		# github.com, raw.githubusercontent.com, and api.github.com without
-		# conflict warnings. http-basic is not needed.
-		composer config --global --auth github-oauth.raw.githubusercontent.com "$token"
+		# Auth is still needed for dist downloads from private plugin/package repos
+		# (github.com release assets and api.github.com zipballs).
 		composer config --global --auth github-oauth.api.github.com "$token"
-
-		# Propagate updated auth to subsequent steps. GITHUB_ENV requires
-		# single-line values; jq -c guarantees compact output.
-		if [ -n "${GITHUB_ENV:-}" ]; then
-			MERGED_AUTH="$(jq -cn \
-				--arg token "$token" \
-				'{"github-oauth":{"github.com":$token,"raw.githubusercontent.com":$token,"api.github.com":$token}}')"
-			printf 'COMPOSER_AUTH=%s\n' "$MERGED_AUTH" >> "$GITHUB_ENV"
-		fi
 	fi
 
 	echo "  repositories.builtnorth → ${INDEX_URL}"
