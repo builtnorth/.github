@@ -268,18 +268,18 @@ jobs:
 
       - name: Check for uncommitted changes
         run: |
-          # When use-workspace is true the build runs in a rsynced copy under
-          # basecamp-dev; git status there walks to that parent and always looks
-          # dirty. Verify the package repository checkout instead.
+          # Ignore untracked files (e.g. package-lock.json created by npm install
+          # when the package does not commit a lockfile). Fail only if tracked
+          # source was modified by the build.
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
-            if [[ -n $(git -C "$GITHUB_WORKSPACE" status --porcelain) ]]; then
-              echo "Build process created uncommitted changes in package repo:"
-              git -C "$GITHUB_WORKSPACE" status --porcelain
+            if [[ -n $(git -C "$GITHUB_WORKSPACE" status --porcelain -uno) ]]; then
+              echo "Build process modified tracked files in package repo:"
+              git -C "$GITHUB_WORKSPACE" status --porcelain -uno
               exit 1
             fi
-          elif [[ -n $(git status --porcelain) ]]; then
-            echo "Build process created uncommitted changes:"
-            git status --porcelain
+          elif [[ -n $(git status --porcelain -uno) ]]; then
+            echo "Build process modified tracked files:"
+            git status --porcelain -uno
             exit 1
           fi
 
