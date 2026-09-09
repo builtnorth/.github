@@ -98,7 +98,7 @@ jobs:
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
@@ -156,7 +156,7 @@ jobs:
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
@@ -205,7 +205,7 @@ jobs:
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","raw.githubusercontent.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}","api.github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
