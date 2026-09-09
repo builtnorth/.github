@@ -117,20 +117,7 @@ jobs:
 
             - name: Configure Composer for private repos
               env:
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   # Auth is configured via COMPOSER_AUTH env variable
                   echo "Composer auth configured via environment"
@@ -150,20 +137,7 @@ jobs:
 
             - name: Update composer.json for production
               env:
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   # Derive VCS mirrors from this plugin's composer.json (no kitchen-sink).
                   bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh from-composer
@@ -179,20 +153,7 @@ jobs:
 
             - name: Finalize production dependency lock
               env:
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   composer config optimize-autoloader true
                   composer config classmap-authoritative true
@@ -216,20 +177,7 @@ jobs:
 
             - name: Install production dependencies from lock
               env:
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   rm -rf vendor
                   composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-dist --no-interaction

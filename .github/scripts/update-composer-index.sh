@@ -72,20 +72,26 @@ if [ "$OBJECT_TYPE" = "tag" ]; then
 	COMMIT=$(gh api "repos/${ORG}/${SLUG}/git/tags/${COMMIT}" --jq '.object.sha' 2>/dev/null || echo "$COMMIT")
 fi
 
-# Zip asset URL — prefer the release asset, fall back to the conventional URL
-ASSET_URL=$(echo "$RELEASE" | jq -r \
-	--arg slug "$SLUG" --arg ver "$VERSION" \
-	'.assets[] | select(.name == "\($slug)-\($ver).zip") | .browser_download_url' \
-	2>/dev/null | head -1)
-if [ -z "$ASSET_URL" ]; then
-	ASSET_URL="https://github.com/${ORG}/${SLUG}/releases/download/${TAG}/${SLUG}-${VERSION}.zip"
-fi
-
 # Fetch composer.json from the tag to include require/autoload metadata
 RAW_COMPOSER=$(gh api "repos/${ORG}/${SLUG}/contents/composer.json?ref=${TAG}" \
 	--jq '.content' 2>/dev/null | base64 -d 2>/dev/null || echo "{}")
 
 PKG_TYPE=$(echo "$RAW_COMPOSER"    | jq -r '.type        // "library"')
+
+# Libraries: Composer only authenticates GitHub OAuth on api.github.com zipball
+# URLs. github.com/releases/download assets 404 (GitHub hides private files).
+# Plugins: packaged zip includes vendor/; zipball would be source-only.
+if [ "$PKG_TYPE" = "wordpress-plugin" ]; then
+	ASSET_URL=$(echo "$RELEASE" | jq -r \
+		--arg slug "$SLUG" --arg ver "$VERSION" \
+		'.assets[] | select(.name == "\($slug)-\($ver).zip" or .name == "\($slug).zip") | .browser_download_url' \
+		2>/dev/null | head -1)
+	if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
+		ASSET_URL="https://github.com/${ORG}/${SLUG}/releases/download/${TAG}/${SLUG}.zip"
+	fi
+else
+	ASSET_URL="https://api.github.com/repos/${ORG}/${SLUG}/zipball/${TAG}"
+fi
 PKG_DESC=$(echo "$RAW_COMPOSER"    | jq -r '.description // ""')
 PKG_REQUIRE=$(echo "$RAW_COMPOSER" | jq '.require        // {}')
 PKG_AUTOLOAD=$(echo "$RAW_COMPOSER"| jq '.autoload       // {}')

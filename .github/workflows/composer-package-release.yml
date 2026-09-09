@@ -197,20 +197,7 @@ jobs:
                   POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
                   WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
               run: |
                   if [ -z "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && [ -z "${WORKFLOW_TOKEN}" ]; then
                     echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty in this workflow."
@@ -263,20 +250,7 @@ jobs:
             - name: Install finalized production dependencies
               if: hashFiles('composer.lock') != ''
               env:
-                  COMPOSER_AUTH: |
-                      {
-                          "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
-                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
-                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
-                          },
-                          "http-basic": {
-                              "github.com": {
-                                  "username": "x-access-token",
-                                  "password": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
-                              }
-                          }
-                      }
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
               run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 
             - name: Create and push tag

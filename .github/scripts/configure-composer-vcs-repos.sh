@@ -21,13 +21,22 @@ register_index() {
 	# The index itself is public — no auth needed to fetch packages.json.
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
 
-	if [ -n "$token" ]; then
-		# github-oauth is only sent for api.github.com URLs. Private GitHub
-		# release zips (github.com/.../releases/download/...) need http-basic
-		# with username x-access-token or GitHub returns 404, not 401.
-		composer config --global --auth github-oauth.github.com "$token"
-		composer config --global --auth http-basic.github.com x-access-token "$token"
+	if [ -z "$token" ]; then
+		echo "ERROR: COMPOSER_AUTH github-oauth.github.com is empty." >&2
+		echo "ERROR: Private package dist is api.github.com zipballs; Composer only" >&2
+		echo "ERROR: sends GitHub OAuth when the token is keyed as github.com." >&2
+		exit 1
 	fi
+
+	# Composer AuthHelper sends "Authorization: token" only when:
+	#   origin github.com, password x-oauth-basic, URL is api.github.com.
+	# It remaps origin api.github.com → github.com when github.com is NOT
+	# already authenticated under a different scheme.
+	# Do NOT set github-oauth.api.github.com (sends broken Basic auth).
+	# Do NOT set http-basic.github.com (overwrites x-oauth-basic).
+	composer config --global --unset http-basic.github.com >/dev/null 2>&1 || true
+	composer config --global --unset github-oauth.api.github.com >/dev/null 2>&1 || true
+	composer config --global --auth github-oauth.github.com "$token"
 
 	echo "  repositories.builtnorth → ${INDEX_URL}"
 }
