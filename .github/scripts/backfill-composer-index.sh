@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Backfill the builtnorth/composer private index with every released version
+# Backfill the builtnorth/registry private index with every released version
 # of every composer-type package in the release catalog.
 #
 # Run this once to bootstrap the index after the new update-composer-index.sh

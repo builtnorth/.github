@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Configure first-party package resolution without mutating the project manifest.
 #
-# The private Composer index (builtnorth/composer) is public — packages.json
+# The private Composer index (builtnorth/registry) is public — packages.json
 # contains only package names, versions, and release download URLs, no secrets.
 # Auth is only needed for the actual dist downloads from private plugin repos.
 set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
 PROFILE="${1:-from-composer}"
-INDEX_URL="${BUILTNORTH_COMPOSER_INDEX_URL:-https://raw.githubusercontent.com/builtnorth/composer/main}"
+INDEX_URL="${BUILTNORTH_COMPOSER_INDEX_URL:-https://raw.githubusercontent.com/builtnorth/registry/main}"
 
 register_index() {
 	local auth token

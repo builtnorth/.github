@@ -509,12 +509,12 @@ async function waitForRun(repo, runId) {
 function prepareComposerIndex(workspace) {
 	const indexPath = path.join(workspace, "_composer-index");
 	if (!fs.existsSync(path.join(indexPath, ".git"))) {
-		console.log("Cloning builtnorth/composer release index...");
+		console.log("Cloning builtnorth/registry release index...");
 		run("git", [
 			"clone",
 			"--filter=blob:none",
 			"--no-checkout",
-			"https://github.com/builtnorth/composer.git",
+			"https://github.com/builtnorth/registry.git",
 			indexPath,
 		]);
 	}

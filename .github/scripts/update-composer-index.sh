@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Update the private builtnorth/composer index with a newly released package.
+# Update the private builtnorth/registry index with a newly released package.
 #
 # Usage:
 #   update-composer-index.sh <composer-namespace> <version>
@@ -8,7 +8,7 @@
 # Environment:
 #   GH_TOKEN  — PAT with repo scope across all builtnorth/* repos (required)
 #
-# The script clones builtnorth/composer to a temp dir, appends the new version
+# The script clones builtnorth/registry to a temp dir, appends the new version
 # entry to packages.json, commits and pushes. It retries up to 5 times on push
 # conflicts (parallel release jobs writing simultaneously).
 set -euo pipefail

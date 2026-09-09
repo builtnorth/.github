@@ -406,6 +406,6 @@ jobs:
                     echo "POLARIS_PLUGIN_GITHUB_TOKEN not set; skip composer index"
                     exit 0
                   fi
-                  gh api --method POST repos/builtnorth/composer/dispatches --input - <<EOF
+                  gh api --method POST repos/builtnorth/registry/dispatches --input - <<EOF
                   {"event_type":"plugin-released","client_payload":{"plugin":"${{ steps.version.outputs.PLUGIN_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
                   EOF
