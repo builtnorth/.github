@@ -9,6 +9,7 @@ import {
 	bumpVersion,
 	classifyCommits,
 	constraintAllows,
+	loadGraph,
 } from "./release.mjs";
 
 function packageNode(slug, { deployable = false } = {}) {
@@ -33,6 +34,7 @@ function state(latestVersion, options = {}) {
 	return {
 		latestVersion,
 		changed: options.changed || false,
+		buildChanged: options.buildChanged || false,
 		bump,
 		nextVersion: bumpVersion(latestVersion, bump),
 	};
@@ -73,6 +75,17 @@ test("changed dependencies release before the requested package", () => {
 		plan.releases.map((entry) => entry.node.slug),
 		["instant-actions", "job-dispatcher"],
 	);
+});
+
+test("catalog provides the release graph without Basecamp paths", () => {
+	const graph = loadGraph();
+	const dispatcher = graph.nodes.find((node) => node.slug === "job-dispatcher");
+	assert.equal(graph.nodes.length, 32);
+	assert.deepEqual(
+		dispatcher.dependencies.map((edge) => edge.node.slug),
+		["instant-actions"],
+	);
+	assert.equal(graph.nodes.some((node) => "path" in node), false);
 });
 
 test("unchanged source libraries are skipped while bundled deployables refresh", () => {
@@ -123,12 +136,12 @@ test("a Polaris major release requires explicit deployable migrations", () => {
 test("build-time consumers require committed rebuilt assets", () => {
 	const charts = packageNode("charts");
 	const plugin = packageNode("polaris-seo", { deployable: true });
-	connect(plugin, charts, "*", "npm-build");
+	connect(plugin, charts, "*", "build");
 
 	const plan = buildPlan({
 		nodes: [charts, plugin],
 		states: {
-			charts: state("1.3.0", { changed: true }),
+		charts: state("1.3.0", { changed: true, buildChanged: true }),
 			"polaris-seo": state("1.4.9"),
 		},
 		targetSlug: "charts",

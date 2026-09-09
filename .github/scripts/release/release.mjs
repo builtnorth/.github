@@ -14,10 +14,6 @@ function readJson(file) {
 	return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-function readJsonIfPresent(file) {
-	return fs.existsSync(file) ? readJson(file) : null;
-}
-
 function run(command, args, options = {}) {
 	return execFileSync(command, args, {
 		cwd: options.cwd,
@@ -119,13 +115,6 @@ export function classifyCommits(messages) {
 	return "patch";
 }
 
-function internalNpmVersion(specifier) {
-	const match = String(specifier).match(
-		/github\.com\/builtnorth\/[^/]+\/releases\/download\/v(\d+\.\d+\.\d+)\//,
-	);
-	return match ? match[1] : specifier;
-}
-
 function addEdge(node, dependency, kind, constraint) {
 	if (node.dependencies.some((edge) => edge.node === dependency && edge.kind === kind)) {
 		return;
@@ -134,82 +123,37 @@ function addEdge(node, dependency, kind, constraint) {
 	dependency.dependents.push({ node, kind, constraint });
 }
 
-function collectSourceFiles(directory, output = []) {
-	if (!fs.existsSync(directory)) return output;
-	for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-		if (["build", "node_modules", "vendor", ".git"].includes(entry.name)) continue;
-		const file = path.join(directory, entry.name);
-		if (entry.isDirectory()) collectSourceFiles(file, output);
-		else if (/\.(?:js|jsx|ts|tsx|scss)$/.test(entry.name)) output.push(file);
-	}
-	return output;
-}
-
-function importedInternalPackages(node) {
-	const found = new Set();
-	const pattern =
-		/(?:from\s*|import\s*\(|import\s*|require\(|@use\s*|@import\s*)["'](@(?:builtnorth|polaris)\/[^/"']+)/g;
-	for (const file of collectSourceFiles(path.join(node.absolutePath, "src"))) {
-		const content = fs.readFileSync(file, "utf8");
-		for (const match of content.matchAll(pattern)) found.add(match[1]);
-	}
-	return found;
-}
-
-export function loadGraph(root, catalogFile = DEFAULT_CATALOG) {
+export function loadGraph(catalogFile = DEFAULT_CATALOG) {
 	const catalog = readJson(catalogFile);
-	const nodes = catalog.packages.map((entry) => {
-		const absolutePath = path.resolve(root, entry.path);
-		const composer = readJsonIfPresent(path.join(absolutePath, "composer.json"));
-		const npm = readJsonIfPresent(path.join(absolutePath, "package.json"));
-		const slug = entry.repo || path.basename(entry.path);
-		const composerType = composer?.type || "";
-		return {
-			...entry,
-			slug,
-			repo: `builtnorth/${slug}`,
-			absolutePath,
-			composer,
-			npm,
-			composerName: composer?.name || null,
-			npmName: npm?.name || null,
-			deployable:
-				composerType === "wordpress-plugin" || composerType === "wordpress-theme",
-			dependencies: [],
-			dependents: [],
-		};
-	});
-
-	const names = new Map();
-	for (const node of nodes) {
-		if (node.composerName) names.set(node.composerName, node);
-		if (node.npmName) names.set(node.npmName, node);
-	}
+	const nodes = catalog.packages.map((entry) => ({
+		...entry,
+		repo: entry.repo || `builtnorth/${entry.slug}`,
+		developmentBranch: entry.developmentBranch || catalog.developmentBranch || "dev",
+		releaseBranch: entry.releaseBranch || catalog.releaseBranch || "main",
+		deployable: entry.type === "plugin" || entry.type === "theme",
+		releasable: entry.releasable !== false,
+		declaredDependencies: entry.dependencies || [],
+		dependencies: [],
+		dependents: [],
+	}));
+	const names = new Map(nodes.map((node) => [node.slug, node]));
 
 	for (const node of nodes) {
-		for (const [name, constraint] of Object.entries(node.composer?.require || {})) {
-			const dependency = names.get(name);
-			if (dependency) addEdge(node, dependency, "composer", constraint);
-		}
-		for (const [name, specifier] of Object.entries(node.npm?.dependencies || {})) {
-			const dependency = names.get(name);
-			if (dependency) {
-				addEdge(node, dependency, "npm", internalNpmVersion(specifier));
+		for (const [slug, kind, constraint] of node.declaredDependencies) {
+			const dependency = names.get(slug);
+			if (!dependency) {
+				throw new Error(`${node.slug} references unknown dependency ${slug}`);
 			}
-		}
-		for (const name of importedInternalPackages(node)) {
-			const dependency = names.get(name);
-			if (dependency && dependency !== node) {
-				addEdge(node, dependency, "npm-build", "*");
+			if (!["composer", "npm", "build"].includes(kind)) {
+				throw new Error(`${node.slug} has unknown dependency kind ${kind}`);
 			}
+			addEdge(node, dependency, kind, constraint);
 		}
 	}
 
 	assertAcyclic(nodes);
 	return {
 		nodes,
-		developmentBranch: catalog.developmentBranch || "dev",
-		releaseBranch: catalog.releaseBranch || "main",
 	};
 }
 
@@ -234,9 +178,7 @@ function versionFor(state, selectedEntry) {
 }
 
 function dependencyCanUse(edge, dependencyVersion) {
-	if (edge.kind === "npm" && /^https?:/.test(String(edge.constraint))) {
-		return internalNpmVersion(edge.constraint) === dependencyVersion;
-	}
+	if (edge.kind === "build") return true;
 	return constraintAllows(edge.constraint, dependencyVersion);
 }
 
@@ -261,12 +203,8 @@ export function buildPlan({
 	includeDependents = true,
 	force = false,
 }) {
-	const target = nodes.find(
-		(node) =>
-			node.slug === targetSlug ||
-			node.composerName === targetSlug ||
-			node.npmName === targetSlug,
-	);
+	const normalizedTarget = targetSlug.replace(/^builtnorth\//, "");
+	const target = nodes.find((node) => node.slug === normalizedTarget);
 	if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
 
 	const selected = new Map();
@@ -280,6 +218,9 @@ export function buildPlan({
 			bumpVersion(state.latestVersion || "0.0.0", state.bump || "patch");
 		if (!selected.has(node.slug)) {
 			selected.set(node.slug, { node, reason, version: resolvedVersion });
+			if (node.releasable === false) {
+				blockers.push(`${node.slug} is cataloged but has no release workflow`);
+			}
 		}
 		return selected.get(node.slug);
 	};
@@ -289,6 +230,7 @@ export function buildPlan({
 			const dependency = edge.node;
 			const state = stateFor(dependency);
 			if (!state.changed) continue;
+			if (edge.kind === "build" && !state.buildChanged) continue;
 			if (trail.includes(dependency.slug)) continue;
 			addChangedDependencies(dependency, [...trail, consumer.slug]);
 			const entry = select(dependency, `changed dependency of ${consumer.slug}`);
@@ -331,10 +273,16 @@ export function buildPlan({
 
 			for (const reverseEdge of released.node.dependents) {
 				const consumer = reverseEdge.node;
+				if (
+					reverseEdge.kind === "build" &&
+					!stateFor(released.node).buildChanged
+				) {
+					continue;
+				}
 				if (!dependencyCanUse(reverseEdge, released.version)) continue;
 				const state = stateFor(consumer);
 
-				if (reverseEdge.kind === "npm-build" && consumer.deployable && !state.changed) {
+				if (reverseEdge.kind === "build" && consumer.deployable && !state.changed) {
 					blockers.push(
 						`${consumer.slug} imports ${released.node.slug}; rebuild and commit its production assets before release`,
 					);
@@ -375,16 +323,14 @@ function refExists(cwd, ref) {
 	}
 }
 
-export function readRepositoryState(node, developmentBranch = "dev") {
-	const ref = refExists(node.absolutePath, `origin/${developmentBranch}`)
-		? `origin/${developmentBranch}`
-		: refExists(node.absolutePath, developmentBranch)
-			? developmentBranch
+export function readRepositoryState(node) {
+	const ref = refExists(node.absolutePath, `origin/${node.developmentBranch}`)
+		? `origin/${node.developmentBranch}`
+		: refExists(node.absolutePath, node.developmentBranch)
+			? node.developmentBranch
 			: "HEAD";
 	const tags = git(node.absolutePath, [
 		"tag",
-		"--merged",
-		ref,
 		"--list",
 		"v[0-9]*.[0-9]*.[0-9]*",
 		"--sort=-version:refname",
@@ -392,6 +338,14 @@ export function readRepositoryState(node, developmentBranch = "dev") {
 	const latestTag = tags.split("\n").find(Boolean) || null;
 	const range = latestTag ? `${latestTag}..${ref}` : ref;
 	const messages = git(node.absolutePath, ["log", "--format=%s%n%b", range])
+		.split("\n")
+		.filter(Boolean);
+	const changedFiles = git(
+		node.absolutePath,
+		latestTag
+			? ["diff", "--name-only", range]
+			: ["ls-tree", "-r", "--name-only", ref],
+	)
 		.split("\n")
 		.filter(Boolean);
 	const bump = classifyCommits(messages);
@@ -402,30 +356,37 @@ export function readRepositoryState(node, developmentBranch = "dev") {
 		latestVersion,
 		bump,
 		nextVersion: bumpVersion(latestVersion, bump),
+		buildChanged: changedFiles.some(
+			(file) =>
+				file === "package.json" ||
+				file === "package-lock.json" ||
+				/^(?:src|assets)\/.*\.(?:js|jsx|ts|tsx|scss|css)$/.test(file),
+		),
 	};
 }
 
 function parseFlags(args) {
 	const flags = {
 		target: "",
-		root: process.cwd(),
 		catalog: DEFAULT_CATALOG,
+		workspace: path.resolve(
+			process.env.RUNNER_TEMP || process.cwd(),
+			"release-repositories",
+		),
 		version: null,
 		includeDependents: true,
 		force: false,
 		execute: false,
-		refresh: false,
 	};
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index];
 		if (value === "--target") flags.target = args[++index];
-		else if (value === "--root") flags.root = path.resolve(args[++index]);
 		else if (value === "--catalog") flags.catalog = path.resolve(args[++index]);
+		else if (value === "--workspace") flags.workspace = path.resolve(args[++index]);
 		else if (value === "--version") flags.version = args[++index].replace(/^v/, "");
 		else if (value === "--no-dependents") flags.includeDependents = false;
 		else if (value === "--force") flags.force = true;
 		else if (value === "--execute") flags.execute = true;
-		else if (value === "--refresh") flags.refresh = true;
 		else throw new Error(`Unknown option: ${value}`);
 	}
 	if (!flags.target) throw new Error("--target is required");
@@ -507,7 +468,7 @@ function assertNotRateLimited(error) {
 	throw error;
 }
 
-async function executePlan(plan, branches) {
+async function executePlan(plan) {
 	if (plan.blockers.length) throw new Error("Release plan has dependency blockers.");
 	if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required for --execute");
 
@@ -523,34 +484,34 @@ async function executePlan(plan, branches) {
 		git(node.absolutePath, [
 			"fetch",
 			"origin",
-			branches.developmentBranch,
-			branches.releaseBranch,
+			node.developmentBranch,
+			node.releaseBranch,
 			"--tags",
 		]);
 		git(node.absolutePath, [
 			"checkout",
 			"-B",
-			branches.developmentBranch,
-			`origin/${branches.developmentBranch}`,
+			node.developmentBranch,
+			`origin/${node.developmentBranch}`,
 		]);
 		git(node.absolutePath, [
 			"merge",
 			"--no-edit",
-			`origin/${branches.releaseBranch}`,
+			`origin/${node.releaseBranch}`,
 		]);
-		git(node.absolutePath, ["push", "origin", branches.developmentBranch]);
+		git(node.absolutePath, ["push", "origin", node.developmentBranch]);
 		git(node.absolutePath, [
 			"checkout",
 			"-B",
-			branches.releaseBranch,
-			`origin/${branches.releaseBranch}`,
+			node.releaseBranch,
+			`origin/${node.releaseBranch}`,
 		]);
 		git(node.absolutePath, [
 			"merge",
 			"--ff-only",
-			branches.developmentBranch,
+			node.developmentBranch,
 		]);
-		git(node.absolutePath, ["push", "origin", branches.releaseBranch]);
+		git(node.absolutePath, ["push", "origin", node.releaseBranch]);
 
 		try {
 			run("gh", [
@@ -560,7 +521,7 @@ async function executePlan(plan, branches) {
 				"--repo",
 				node.repo,
 				"--ref",
-				branches.releaseBranch,
+				node.releaseBranch,
 				"-f",
 				`version=${version}`,
 				"-f",
@@ -575,29 +536,80 @@ async function executePlan(plan, branches) {
 	}
 }
 
-function refreshRepositories(graph) {
-	for (const node of graph.nodes) {
+function releaseCandidates(nodes, targetSlug, includeDependents) {
+	const slug = targetSlug.replace(/^builtnorth\//, "");
+	const target = nodes.find((node) => node.slug === slug);
+	if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
+	const selected = new Set();
+
+	const addDependencies = (node) => {
+		if (selected.has(node.slug)) return;
+		selected.add(node.slug);
+		for (const edge of node.dependencies) addDependencies(edge.node);
+	};
+	addDependencies(target);
+
+	if (includeDependents) {
+		const queue = [target];
+		const traversed = new Set();
+		while (queue.length) {
+			const node = queue.shift();
+			if (traversed.has(node.slug)) continue;
+			traversed.add(node.slug);
+			for (const edge of node.dependents) {
+				selected.add(edge.node.slug);
+				queue.push(edge.node);
+			}
+		}
+		for (const node of nodes) {
+			if (selected.has(node.slug)) addDependencies(node);
+		}
+	}
+
+	return nodes.filter((node) => selected.has(node.slug));
+}
+
+function prepareRepositories(nodes, workspace) {
+	fs.mkdirSync(workspace, { recursive: true });
+	for (const node of nodes) {
+		node.absolutePath = path.join(workspace, node.slug);
+		if (!fs.existsSync(path.join(node.absolutePath, ".git"))) {
+			console.log(`Cloning ${node.repo}...`);
+			run("git", [
+				"clone",
+				"--filter=blob:none",
+				"--no-checkout",
+				`https://github.com/${node.repo}.git`,
+				node.absolutePath,
+			]);
+		}
+
+		const branches = [...new Set([node.developmentBranch, node.releaseBranch])];
 		console.log(`Refreshing ${node.slug} branches and tags...`);
 		git(node.absolutePath, [
 			"fetch",
 			"--prune",
 			"--tags",
 			"origin",
-			`+refs/heads/${graph.developmentBranch}:refs/remotes/origin/${graph.developmentBranch}`,
-			`+refs/heads/${graph.releaseBranch}:refs/remotes/origin/${graph.releaseBranch}`,
+			...branches.map(
+				(branch) =>
+					`+refs/heads/${branch}:refs/remotes/origin/${branch}`,
+			),
 		]);
 	}
 }
 
 async function main() {
 	const flags = parseFlags(process.argv.slice(2));
-	const graph = loadGraph(flags.root, flags.catalog);
-	if (flags.refresh) refreshRepositories(graph);
+	const graph = loadGraph(flags.catalog);
+	const candidates = releaseCandidates(
+		graph.nodes,
+		flags.target,
+		flags.includeDependents,
+	);
+	prepareRepositories(candidates, flags.workspace);
 	const states = Object.fromEntries(
-		graph.nodes.map((node) => [
-			node.slug,
-			readRepositoryState(node, graph.developmentBranch),
-		]),
+		candidates.map((node) => [node.slug, readRepositoryState(node)]),
 	);
 	const plan = buildPlan({
 		nodes: graph.nodes,
@@ -611,7 +623,7 @@ async function main() {
 	if (plan.blockers.length) {
 		throw new Error("Release plan has dependency blockers.");
 	}
-	if (flags.execute) await executePlan(plan, graph);
+	if (flags.execute) await executePlan(plan);
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";

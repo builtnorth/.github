@@ -1,38 +1,204 @@
 {
   "developmentBranch": "dev",
   "releaseBranch": "main",
+  "dependencyFormat": "[repository slug, composer|npm|build, committed constraint]",
   "packages": [
-    { "path": "composer_packages/builtnorth-coding-standards", "repo": "coding-standards" },
-    { "path": "composer_packages/wp-baseline" },
-    { "path": "composer_packages/wp-config" },
-    { "path": "composer_packages/wp-environment-indicator" },
-    { "path": "composer_packages/wp-utility" },
-    { "path": "composer_packages/extended-cpts-extras" },
-    { "path": "composer_packages/wp-schema" },
-    { "path": "composer_packages/wp-cli-builtnorth" },
-    { "path": "composer_packages/instant-actions" },
-    { "path": "composer_packages/polaris-integrations-lib" },
-    { "path": "composer_packages/polaris-controls" },
-    { "path": "composer_packages/theme-skin-switcher" },
-    { "path": "composer_packages/job-dispatcher" },
-    { "path": "composer_packages/wp-portability" },
-    { "path": "composer_packages/polaris-ai" },
-    { "path": "npm_packages/charts" },
-    { "path": "npm_packages/wp-component-library" },
-    { "path": "npm_packages/ui-kit" },
-    { "path": "npm_packages/wp-blocks" },
-    { "path": "composer_packages/polaris" },
-    { "path": "wp-content/plugins/polaris-analytics" },
-    { "path": "wp-content/plugins/polaris-backup" },
-    { "path": "wp-content/plugins/polaris-blocks" },
-    { "path": "wp-content/plugins/polaris-dashboard" },
-    { "path": "wp-content/plugins/polaris-directory" },
-    { "path": "wp-content/plugins/polaris-forms" },
-    { "path": "wp-content/plugins/polaris-performance" },
-    { "path": "wp-content/plugins/polaris-reviews" },
-    { "path": "wp-content/plugins/polaris-security" },
-    { "path": "wp-content/plugins/polaris-seo" },
-    { "path": "wp-content/themes/compass" },
-    { "path": "wp-content/themes/compass-waas" }
+    { "slug": "coding-standards", "type": "composer" },
+    { "slug": "wp-baseline", "type": "composer" },
+    { "slug": "wp-config", "type": "composer" },
+    { "slug": "wp-environment-indicator", "type": "composer" },
+    { "slug": "wp-utility", "type": "composer" },
+    { "slug": "extended-cpts-extras", "type": "composer" },
+    { "slug": "wp-schema", "type": "composer" },
+    { "slug": "wp-cli-builtnorth", "type": "composer" },
+    { "slug": "instant-actions", "type": "composer" },
+    { "slug": "polaris-integrations-lib", "type": "composer" },
+    { "slug": "polaris-controls", "type": "composer" },
+    { "slug": "theme-skin-switcher", "type": "composer" },
+    {
+      "slug": "job-dispatcher",
+      "type": "composer",
+      "dependencies": [["instant-actions", "composer", "^2.0"]]
+    },
+    {
+      "slug": "wp-portability",
+      "type": "composer",
+      "dependencies": [
+        ["job-dispatcher", "composer", "^2.0"],
+        ["job-dispatcher", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-ai",
+      "type": "composer",
+      "dependencies": [["job-dispatcher", "composer", "^2.0"]]
+    },
+    { "slug": "charts", "type": "npm" },
+    { "slug": "wp-component-library", "type": "npm" },
+    { "slug": "ui-kit", "type": "npm" },
+    {
+      "slug": "wp-blocks",
+      "type": "npm",
+      "dependencies": [
+        ["ui-kit", "npm", "1.5.0"],
+        ["wp-component-library", "npm", "1.2.5"],
+        ["wp-component-library", "build", "*"],
+        ["ui-kit", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris",
+      "type": "composer",
+      "dependencies": [
+        ["extended-cpts-extras", "composer", "^1.2"],
+        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris-controls", "composer", "^1.0"],
+        ["polaris-integrations-lib", "composer", "^1.2"],
+        ["wp-baseline", "composer", "^3.3"],
+        ["wp-environment-indicator", "composer", "^1.0"],
+        ["wp-utility", "composer", "^2.4"],
+        ["charts", "build", "*"],
+        ["wp-component-library", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-analytics",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.2"],
+        ["wp-portability", "composer", "^1.1"],
+        ["job-dispatcher", "composer", "^1.1"],
+        ["charts", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["polaris", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-backup",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.2"],
+        ["wp-portability", "composer", "^1.1"],
+        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris", "build", "*"],
+        ["job-dispatcher", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-blocks",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.3"],
+        ["polaris-ai", "composer", "^1.2"],
+        ["wp-component-library", "build", "*"],
+        ["ui-kit", "build", "*"],
+        ["wp-blocks", "build", "*"],
+        ["polaris", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-dashboard",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.4"],
+        ["polaris", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-directory",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.2"],
+        ["polaris-ai", "composer", "^1.2"],
+        ["ui-kit", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["polaris", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-forms",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.3"],
+        ["polaris-ai", "composer", "^1.2"],
+        ["wp-portability", "composer", "^1.1"],
+        ["ui-kit", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["charts", "build", "*"],
+        ["polaris", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-performance",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.3"],
+        ["wp-portability", "composer", "^1.1"],
+        ["charts", "build", "*"],
+        ["polaris", "build", "*"],
+        ["job-dispatcher", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-reviews",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.3"],
+        ["polaris-ai", "composer", "^1.2"],
+        ["wp-portability", "composer", "^1.1"],
+        ["ui-kit", "build", "*"],
+        ["wp-component-library", "build", "*"],
+        ["polaris", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-security",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.2"],
+        ["wp-portability", "composer", "^1.1"],
+        ["job-dispatcher", "composer", "^1.1"],
+        ["polaris", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "polaris-seo",
+      "type": "plugin",
+      "dependencies": [
+        ["polaris", "composer", "^2.3"],
+        ["polaris-ai", "composer", "^1.2"],
+        ["wp-schema", "composer", "^1.3"],
+        ["wp-portability", "composer", "^1.1"],
+        ["job-dispatcher", "composer", "^1.1"],
+        ["wp-component-library", "build", "*"],
+        ["charts", "build", "*"],
+        ["polaris", "build", "*"],
+        ["job-dispatcher", "build", "*"],
+        ["wp-portability", "build", "*"]
+      ]
+    },
+    {
+      "slug": "compass",
+      "type": "theme",
+      "dependencies": [["polaris", "composer", "^2.2"]]
+    },
+    {
+      "slug": "compass-waas",
+      "type": "theme",
+      "releaseBranch": "dev",
+      "releasable": false,
+      "dependencies": [
+        ["polaris", "composer", "^2.2"],
+        ["theme-skin-switcher", "composer", "*"]
+      ]
+    }
   ]
 }
