@@ -29,7 +29,7 @@ fi
 ORG="${BUILTNORTH_ORG:-builtnorth}"
 SLUG="${PACKAGE#${ORG}/}"
 TAG="v${VERSION#v}"
-INDEX_REPO="${ORG}/composer"
+INDEX_REPO="${ORG}/registry"
 TMPDIR="$(mktemp -d)"
 INDEX_PATH="${TMPDIR}/composer-index"
 
