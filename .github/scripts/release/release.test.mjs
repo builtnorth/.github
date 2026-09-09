@@ -175,10 +175,12 @@ test("orchestrator does not contain Actions run polling commands", () => {
 		path.join(path.dirname(fileURLToPath(import.meta.url)), "release.mjs"),
 		"utf8",
 	);
+	// gh run watch/list are banned (high API cost, no error surfacing).
+	// /actions/runs is allowed — we use it for targeted run-status polling
+	// (one call per 90 s per package) to detect failures early. /actions/jobs is banned.
 	const banned = [
 		["gh", "run", "watch"].join(" "),
 		["gh", "run", "list"].join(" "),
-		["/actions", "/runs"].join(""),
 		["/actions", "/jobs"].join(""),
 	];
 	for (const value of banned) assert.equal(script.includes(value), false, value);
