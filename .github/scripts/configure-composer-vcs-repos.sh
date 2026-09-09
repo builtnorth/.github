@@ -4,6 +4,12 @@
 # The private Composer index is the single source for released builtnorth/*
 # packages. Project composer.json files declare dependencies only; CI injects
 # repository configuration globally on its ephemeral runner.
+#
+# Auth strategy: COMPOSER_AUTH env var always overrides auth.json at runtime.
+# We therefore write ALL auth domains into auth.json via `composer config --global --auth`
+# AND export an updated COMPOSER_AUTH that includes all domains so downstream
+# steps (which set their own COMPOSER_AUTH) don't silently lose the credentials
+# we configure here.
 set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
@@ -19,15 +25,33 @@ register_index() {
 	fi
 
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
+
 	if [ -n "$token" ]; then
+		# Write all auth domains to global auth.json.
 		composer config --global --auth http-basic.raw.githubusercontent.com x-access-token "$token"
-		# api.github.com — dist.url entries for libraries use the GitHub API
-		# zipball endpoint which requires its own http-basic credential.
 		composer config --global --auth http-basic.api.github.com x-access-token "$token"
-		# github.com — dist.url entries for plugins use direct release download
-		# URLs (github.com/releases/download/...) which also require auth on
-		# private repos.
+		# github.com — dist.url entries for plugins use direct release download URLs.
 		composer config --global --auth http-basic.github.com x-access-token "$token"
+
+		# Export a merged COMPOSER_AUTH so any downstream step that sets its own
+		# COMPOSER_AUTH env var also carries these http-basic entries. Without this,
+		# COMPOSER_AUTH overwrites auth.json at runtime and the index fetch fails.
+		MERGED_AUTH="$(jq -n \
+			--arg token "$token" \
+			'{
+				"github-oauth": {"github.com": $token},
+				"http-basic": {
+					"raw.githubusercontent.com": {"username": "x-access-token", "password": $token},
+					"api.github.com":            {"username": "x-access-token", "password": $token},
+					"github.com":                {"username": "x-access-token", "password": $token}
+				}
+			}')"
+		export COMPOSER_AUTH="$MERGED_AUTH"
+
+		# Propagate to subsequent GitHub Actions steps via GITHUB_ENV if available.
+		if [ -n "${GITHUB_ENV:-}" ]; then
+			printf 'COMPOSER_AUTH=%s\n' "$MERGED_AUTH" >> "$GITHUB_ENV"
+		fi
 	fi
 
 	echo "  repositories.builtnorth → ${INDEX_URL}"
