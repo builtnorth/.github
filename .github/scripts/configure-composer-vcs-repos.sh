@@ -21,6 +21,10 @@ register_index() {
 	composer config --global repositories.builtnorth composer "$INDEX_URL"
 	if [ -n "$token" ]; then
 		composer config --global --auth http-basic.raw.githubusercontent.com x-access-token "$token"
+		# Also authenticate api.github.com — dist.url entries use the GitHub API
+		# zipball endpoint (api.github.com/repos/.../zipball/...) which requires
+		# its own http-basic credential separate from raw.githubusercontent.com.
+		composer config --global --auth http-basic.api.github.com x-access-token "$token"
 	fi
 
 	echo "  repositories.builtnorth → ${INDEX_URL}"
