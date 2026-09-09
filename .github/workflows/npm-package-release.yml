@@ -38,6 +38,31 @@ on:
         required: false
         type: boolean
         default: true
+      run-tests:
+        description: 'Run tests during release CI'
+        required: false
+        type: boolean
+        default: true
+      run-lint:
+        description: 'Run linting during release CI'
+        required: false
+        type: boolean
+        default: true
+      run-build:
+        description: 'Run build during release CI'
+        required: false
+        type: boolean
+        default: true
+      lint-command:
+        description: 'Lint script name for release CI'
+        required: false
+        type: string
+        default: 'lint'
+      test-command:
+        description: 'Test script name for release CI'
+        required: false
+        type: string
+        default: 'test'
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN:
         required: false
@@ -80,6 +105,14 @@ jobs:
     needs: preflight
     if: needs.preflight.outputs.already_released != 'true'
     uses: builtnorth/.github/.github/workflows/npm-package-ci.yml@main
+    with:
+      package-name: ${{ inputs.package-name }}
+      use-workspace: ${{ inputs.use-workspace }}
+      run-tests: ${{ inputs.run-tests }}
+      run-lint: ${{ inputs.run-lint }}
+      run-build: ${{ inputs.run-build }}
+      lint-command: ${{ inputs.lint-command }}
+      test-command: ${{ inputs.test-command }}
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 

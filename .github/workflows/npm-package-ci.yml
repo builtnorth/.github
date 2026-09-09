@@ -268,10 +268,16 @@ jobs:
 
       - name: Check for uncommitted changes
         run: |
+          # When use-workspace is true the build runs in a rsynced copy under
+          # basecamp-dev; git status there walks to that parent and always looks
+          # dirty. Verify the package repository checkout instead.
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
-            cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
-          fi
-          if [[ -n $(git status --porcelain) ]]; then
+            if [[ -n $(git -C "$GITHUB_WORKSPACE" status --porcelain) ]]; then
+              echo "Build process created uncommitted changes in package repo:"
+              git -C "$GITHUB_WORKSPACE" status --porcelain
+              exit 1
+            fi
+          elif [[ -n $(git status --porcelain) ]]; then
             echo "Build process created uncommitted changes:"
             git status --porcelain
             exit 1
