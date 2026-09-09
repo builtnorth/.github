@@ -200,7 +200,9 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
+                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
+                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
                           }
                       }
               run: |
@@ -258,7 +260,9 @@ jobs:
                   COMPOSER_AUTH: |
                       {
                           "github-oauth": {
-                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                              "github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
+                              "raw.githubusercontent.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}",
+                              "api.github.com": "${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
                           }
                       }
               run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
