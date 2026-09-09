@@ -155,15 +155,11 @@ jobs:
                   # Remove the version field that causes warnings
                   composer config --unset version || true
 
-            - name: Pin builtnorth deps to latest GitHub releases
-              env:
-                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
-              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
+            - name: Preserve committed builtnorth dependency constraints
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
 
-            - name: Verify composer constraints allow latest releases
-              env:
-                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
-              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify-constraints
+            - name: Validate committed Composer constraints
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh validate
 
             - name: Finalize production dependency lock
               env:
@@ -181,9 +177,7 @@ jobs:
                   echo "=== Resolved versions ==="
                   composer show --locked 2>/dev/null | grep builtnorth || true
 
-            - name: Verify builtnorth deps match latest GitHub releases
-              env:
-                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+            - name: Verify production Composer lock
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
 
             - name: Commit finalized manifests and lock

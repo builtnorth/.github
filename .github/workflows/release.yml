@@ -1,0 +1,100 @@
+name: Release Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Package/repository slug to release"
+        required: true
+        type: string
+      version:
+        description: "Optional target version override (for example 2.0.0)"
+        required: false
+        type: string
+        default: ""
+      include_dependents:
+        description: "Release affected bundled plugins/themes"
+        required: false
+        type: boolean
+        default: true
+      dry_run:
+        description: "Plan only; do not merge, push, or dispatch"
+        required: false
+        type: boolean
+        default: true
+      force:
+        description: "Release the target even when it has no unreleased commits"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: builtnorth-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+      TARGET: ${{ inputs.target }}
+      VERSION: ${{ inputs.version }}
+      INCLUDE_DEPENDENTS: ${{ inputs.include_dependents }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      FORCE_RELEASE: ${{ inputs.force }}
+
+    steps:
+      - name: Require cross-repository token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN is required."
+            exit 1
+          fi
+
+      - name: Checkout release control
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Checkout development workspace
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/basecamp-dev
+          path: workspace
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Test release planner
+        run: node --test .github/scripts/release/release.test.mjs
+
+      - name: Plan or execute release
+        shell: bash
+        run: |
+          args=(
+            --root workspace
+            --target "$TARGET"
+            --refresh
+          )
+
+          if [ -n "$VERSION" ]; then
+            args+=(--version "$VERSION")
+          fi
+          if [ "$INCLUDE_DEPENDENTS" != "true" ]; then
+            args+=(--no-dependents)
+          fi
+          if [ "$FORCE_RELEASE" = "true" ]; then
+            args+=(--force)
+          fi
+          if [ "$DRY_RUN" != "true" ]; then
+            args+=(--execute)
+          fi
+
+          node .github/scripts/release/release.mjs "${args[@]}"

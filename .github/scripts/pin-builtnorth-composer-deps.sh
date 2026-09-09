@@ -1,74 +1,9 @@
 #!/usr/bin/env bash
-# Pin or verify builtnorth/* composer dependencies against latest stable GitHub releases.
+# Prepare and verify builtnorth/* Composer dependencies without changing
+# committed version constraints.
 set -euo pipefail
 
-ORG="${BUILTNORTH_ORG:-builtnorth}"
-MODE="${1:-pin}"
-
-# Prefer an explicit token so private repos are visible to git ls-remote.
-# Create Release exports GH_TOKEN; COMPOSER_AUTH github-oauth is a fallback.
-resolve_github_token() {
-	if [ -n "${GH_TOKEN:-}" ]; then
-		echo "${GH_TOKEN}"
-		return
-	fi
-	if [ -n "${GITHUB_TOKEN:-}" ]; then
-		echo "${GITHUB_TOKEN}"
-		return
-	fi
-	if [ -n "${COMPOSER_AUTH:-}" ]; then
-		echo "${COMPOSER_AUTH}" | jq -r '.["github-oauth"]["github.com"] // empty' 2>/dev/null || true
-	fi
-}
-
-GITHUB_AUTH_TOKEN="$(resolve_github_token)"
-
-get_latest_stable_tag() {
-	local repo="$1"
-	local tag
-	local err
-	# Plain github.com URL on purpose. Create Release configures
-	# url.insteadOf with POLARIS_PLUGIN_GITHUB_TOKEN before this runs.
-	# Embedding x-access-token:${GH_TOKEN}@ here broke private tag lookup when
-	# GH_TOKEN was the workflow github.token fallback (or differed from insteadOf).
-	local remote="https://github.com/${ORG}/${repo}.git"
-	err="$(mktemp)"
-
-	# Use git ls-remote (not gh REST API) to avoid Actions secondary rate limits.
-	# Prefer refs/tags/v* so the pattern matches full ref names.
-	tag=$(git ls-remote --tags "${remote}" 'refs/tags/v*' 2>"${err}" \
-		| sed 's/.*refs\/tags\///' \
-		| sed 's/\^{}//' \
-		| grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-		| sort -t. -k1.2n -k2n -k3n \
-		| tail -1 || true)
-
-	if [ -z "$tag" ]; then
-		echo "ERROR: No stable tag visible for ${ORG}/${repo} via ${remote}." >&2
-		if [ -s "${err}" ]; then
-			echo "ERROR: git ls-remote stderr:" >&2
-			sed 's/x-access-token:[^@]*@/x-access-token:***@/g' "${err}" >&2
-		else
-			echo "ERROR: ls-remote returned no matching tags (and no git error)." >&2
-			echo "ERROR: If this repo is private, confirm url.insteadOf was configured with POLARIS_PLUGIN_GITHUB_TOKEN before pin." >&2
-		fi
-		rm -f "${err}"
-		echo ""
-		return 0
-	fi
-
-	rm -f "${err}"
-	echo "$tag"
-}
-
-package_to_repo() {
-	local pkg="$1"
-	echo "${pkg#builtnorth/}"
-}
-
-normalize_version() {
-	echo "${1#v}"
-}
+MODE="${1:-prepare}"
 
 register_builtnorth_vcs_repos() {
 	local script_dir
@@ -84,143 +19,58 @@ fi
 
 DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
 
-if [ "$MODE" = "pin" ]; then
-	if [ -z "$DIRECT_PACKAGES" ]; then
-		echo "No direct builtnorth dependencies to pin."
-		exit 0
-	fi
+case "$MODE" in
+	prepare|pin)
+		if [ "$MODE" = "pin" ]; then
+			echo "WARNING: mode=pin is deprecated; preserving committed constraints." >&2
+		fi
 
-	register_builtnorth_vcs_repos
+		register_builtnorth_vcs_repos
 
-	for pkg in $DIRECT_PACKAGES; do
-		repo=$(package_to_repo "$pkg")
-		tag=$(get_latest_stable_tag "$repo")
+		if [ -z "$DIRECT_PACKAGES" ]; then
+			echo "No direct builtnorth production dependencies."
+			exit 0
+		fi
 
-		if [ -z "$tag" ]; then
-			echo "ERROR: No stable GitHub release tag visible for ${pkg} (${ORG}/${repo})." >&2
-			echo "ERROR: For private repos this usually means GH_TOKEN/COMPOSER_AUTH cannot read tags." >&2
-			echo "ERROR: Refusing to pin/skip — fix auth or publish the upstream tag before releasing." >&2
+		echo "Committed builtnorth dependency constraints:"
+		jq -r '
+			.require // {}
+			| to_entries[]
+			| select(.key | startswith("builtnorth/"))
+			| "  \(.key): \(.value)"
+		' composer.json
+		echo "Composer will resolve the newest released versions allowed by these constraints."
+		;;
+	validate|verify-constraints)
+		if [ "$MODE" = "verify-constraints" ]; then
+			echo "WARNING: mode=verify-constraints is deprecated; validating committed constraints." >&2
+		fi
+		composer validate --no-check-lock --no-check-publish --no-interaction
+		;;
+	verify)
+		if [ ! -f composer.lock ]; then
+			echo "FAIL: composer.lock missing — cannot verify the production dependency tree." >&2
 			exit 1
 		fi
 
-		version=$(normalize_version "$tag")
-		major_minor=$(echo "$version" | sed -E 's/^([0-9]+\.[0-9]+).*/\1/')
-		current=$(jq -r --arg p "$pkg" '.require[$p] // empty' composer.json)
-		# Never narrow an intentional newer major (e.g. keep ^2.0 when latest visible is still 1.x).
-		if [ -n "$current" ] && [[ "$current" == ^* ]]; then
-			current_base="${current#^}"
-			current_major="${current_base%%.*}"
-			latest_major="${version%%.*}"
-			if [ "$current_major" -gt "$latest_major" ] 2>/dev/null; then
-				echo "ERROR: ${pkg} composer.json requires ${current} but latest visible stable is ${tag}." >&2
-				echo "ERROR: Upstream major is not published/visible yet — cascade must stop." >&2
-				exit 1
-			fi
-		fi
-		echo "Pinning ${pkg} to ^${major_minor} (latest stable release ${tag})"
-		composer require "${pkg}:^${major_minor}" --no-update --no-interaction
-	done
+		composer validate --check-lock --no-check-publish --no-interaction
+		composer install --dry-run --no-dev --no-scripts --no-interaction
 
-	exit 0
-fi
+		LOCKED_PACKAGES=$(jq -r '
+			.packages[]?
+			| select(.name | startswith("builtnorth/"))
+			| "  \(.name): \(.version)"
+		' composer.lock)
 
-if [ "$MODE" = "verify-constraints" ]; then
-	if [ -z "$DIRECT_PACKAGES" ]; then
-		exit 0
-	fi
-
-	register_builtnorth_vcs_repos
-
-	failed=0
-
-	for pkg in $DIRECT_PACKAGES; do
-		repo=$(package_to_repo "$pkg")
-		latest_tag=$(get_latest_stable_tag "$repo")
-
-		if [ -z "$latest_tag" ]; then
-			echo "WARNING: Cannot verify ${pkg} constraint — no stable GitHub release for ${ORG}/${repo}" >&2
-			continue
-		fi
-
-		constraint=$(jq -r --arg p "$pkg" '.require[$p] // empty' composer.json)
-		latest=$(normalize_version "$latest_tag")
-
-		if [ -z "$constraint" ]; then
-			echo "FAIL: ${pkg} missing from composer.json require" >&2
-			failed=1
-			continue
-		fi
-
-		tmp_json=$(mktemp)
-		cp composer.json "$tmp_json"
-		if ! composer require "${pkg}:${latest}" --no-update --no-interaction 2>/dev/null; then
-			echo "FAIL: ${pkg} constraint \"${constraint}\" does not allow latest stable v${latest}" >&2
-			failed=1
-			mv "$tmp_json" composer.json
-			continue
-		fi
-		mv "$tmp_json" composer.json
-		echo "OK: ${pkg} constraint \"${constraint}\" allows latest v${latest}"
-	done
-
-	if [ "$failed" -ne 0 ]; then
-		echo "Release blocked: composer.json constraints block latest builtnorth releases." >&2
-		exit 1
-	fi
-
-	exit 0
-fi
-
-if [ "$MODE" = "verify" ]; then
-	if [ ! -f composer.lock ]; then
-		echo "FAIL: composer.lock missing — cannot verify builtnorth dependency tree" >&2
-		exit 1
-	fi
-
-	# Production lock only — dev packages (e.g. coding-standards) are not bundled in releases.
-	LOCKED_PACKAGES=$(jq -r '.packages[]? | select(.name | startswith("builtnorth/")) | .name' composer.lock | sort -u)
-
-	if [ -z "$LOCKED_PACKAGES" ]; then
-		echo "No builtnorth production packages in composer.lock."
-		exit 0
-	fi
-
-	failed=0
-
-	for pkg in $LOCKED_PACKAGES; do
-		repo=$(package_to_repo "$pkg")
-		latest_tag=$(get_latest_stable_tag "$repo")
-
-		if [ -z "$latest_tag" ]; then
-			echo "WARNING: Cannot verify ${pkg} — no stable GitHub release for ${ORG}/${repo}" >&2
-			continue
-		fi
-
-		locked_version=$(jq -r --arg p "$pkg" '.packages[] | select(.name == $p) | .version' composer.lock)
-		if [ -z "$locked_version" ] || [ "$locked_version" = "null" ]; then
-			echo "FAIL: ${pkg} missing from composer.lock packages" >&2
-			failed=1
-			continue
-		fi
-
-		locked=$(normalize_version "$locked_version")
-		latest=$(normalize_version "$latest_tag")
-
-		if [ "$locked" != "$latest" ]; then
-			echo "FAIL: ${pkg} locked at v${locked} but GitHub latest stable is v${latest}" >&2
-			failed=1
+		if [ -z "$LOCKED_PACKAGES" ]; then
+			echo "No builtnorth production packages in composer.lock."
 		else
-			echo "OK: ${pkg} v${locked} matches GitHub latest"
+			echo "Resolved builtnorth production dependencies:"
+			echo "$LOCKED_PACKAGES"
 		fi
-	done
-
-	if [ "$failed" -ne 0 ]; then
-		echo "Release blocked: builtnorth dependencies are not at latest stable GitHub releases." >&2
+		;;
+	*)
+		echo "Unknown mode: ${MODE} (use prepare, validate, or verify)" >&2
 		exit 1
-	fi
-
-	exit 0
-fi
-
-echo "Unknown mode: ${MODE} (use pin or verify)" >&2
-exit 1
+		;;
+esac

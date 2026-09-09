@@ -213,11 +213,7 @@ jobs:
                   echo "Private Composer token source: $( [ -n "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && echo POLARIS_PLUGIN_GITHUB_TOKEN || echo WORKFLOW_TOKEN )"
 
                   DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
-                  if [ -z "$DIRECT_PACKAGES" ]; then
-                    echo "No direct builtnorth production dependencies."
-                  else
-                    bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh pin
-                  fi
+                  bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
 
                   composer update --no-dev --no-scripts --no-interaction --prefer-dist
                   if [ -n "$DIRECT_PACKAGES" ]; then
