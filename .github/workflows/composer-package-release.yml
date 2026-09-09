@@ -168,19 +168,30 @@ jobs:
 
             - name: Configure git for Composer VCS clones
               if: hashFiles('composer.json') != ''
+              env:
+                  POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
               run: |
-                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}"
+                  TOKEN="${POLARIS_PLUGIN_GITHUB_TOKEN:-${WORKFLOW_TOKEN:-}}"
                   if [ -z "$TOKEN" ]; then
-                    echo "::error::No GitHub token available for private Composer/VCS access (POLARIS_PLUGIN_GITHUB_TOKEN / WORKFLOW_TOKEN / github.token)."
+                    echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty — refusing github.token fallback for private VCS."
+                    echo "::error::Grant the org secret to this private repository (org Settings → Secrets → Repository access)."
                     exit 1
                   fi
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
                   echo "GITHUB_TOKEN_CONFIGURED=1" >> "$GITHUB_ENV"
+                  if [ -n "${POLARIS_PLUGIN_GITHUB_TOKEN}" ]; then
+                    echo "Private VCS token source: POLARIS_PLUGIN_GITHUB_TOKEN"
+                  else
+                    echo "Private VCS token source: WORKFLOW_TOKEN"
+                  fi
 
             - name: Finalize and verify Composer dependencies
               if: hashFiles('composer.json') != '' && github.event_name != 'push'
               env:
+                  POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
                   COMPOSER_AUTH: |
                       {
@@ -189,10 +200,17 @@ jobs:
                           }
                       }
               run: |
+                  if [ -z "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && [ -z "${WORKFLOW_TOKEN}" ]; then
+                    echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty in this workflow."
+                    echo "::error::Create Release would fall back to github.token, which cannot read other private builtnorth/* repos."
+                    echo "::error::Grant the org secret to this private repository (org Settings → Secrets → Repository access)."
+                    exit 1
+                  fi
                   if [ -z "${GH_TOKEN}" ]; then
                     echo "::error::GH_TOKEN is empty — cannot resolve private builtnorth dependencies."
                     exit 1
                   fi
+                  echo "Private Composer token source: $( [ -n "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && echo POLARIS_PLUGIN_GITHUB_TOKEN || echo WORKFLOW_TOKEN )"
 
                   DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
                   if [ -z "$DIRECT_PACKAGES" ]; then
