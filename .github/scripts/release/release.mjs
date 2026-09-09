@@ -8,7 +8,15 @@ import { fileURLToPath } from "node:url";
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_CATALOG = path.resolve(SCRIPT_DIR, "../../release-packages.json");
 const TAG_INTERVAL_MS = 90_000;
-const TAG_TIMEOUT_MS = 45 * 60_000;
+
+// How long to wait for the Composer index to reflect a newly-released package.
+// The index rebuild workflow typically runs in under 2 min; 10 min is the ceiling.
+const COMPOSER_INDEX_TIMEOUT_MS = 10 * 60_000;
+
+// How long to wait for a single package's release workflow to complete.
+// Most releases finish in 3–8 min; 20 min is a hard ceiling before we stop
+// blocking the release train and surface the hang as an error.
+const RUN_TIMEOUT_MS = 20 * 60_000;
 
 function readJson(file) {
 	return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -466,11 +474,11 @@ async function findRunId(repo, ref, dispatchedAt) {
 /**
  * Poll a GitHub Actions run until it completes or times out.
  * Throws if the run concludes as a failure so the release loop stops
- * immediately rather than waiting the full TAG_TIMEOUT_MS.
+ * immediately rather than waiting the full RUN_TIMEOUT_MS.
  */
 async function waitForRun(repo, runId) {
 	const started = Date.now();
-	while (Date.now() - started < TAG_TIMEOUT_MS) {
+	while (Date.now() - started < RUN_TIMEOUT_MS) {
 		try {
 			const raw = run("gh", [
 				"api",
@@ -491,7 +499,10 @@ async function waitForRun(repo, runId) {
 		}
 		await sleep(TAG_INTERVAL_MS);
 	}
-	throw new Error(`Timed out waiting for run ${runId} on ${repo}`);
+	throw new Error(
+		`Timed out after ${RUN_TIMEOUT_MS / 60_000} min waiting for run ${runId} on ${repo}. ` +
+		`Check the Actions tab manually.`,
+	);
 }
 
 
@@ -537,7 +548,7 @@ function composerIndexHasVersion(indexPath, packageName, version) {
 async function waitForComposerIndex(indexPath, node, version) {
 	const packageName = `builtnorth/${node.slug}`;
 	const started = Date.now();
-	while (Date.now() - started < TAG_TIMEOUT_MS) {
+	while (Date.now() - started < COMPOSER_INDEX_TIMEOUT_MS) {
 		if (composerIndexHasVersion(indexPath, packageName, version)) return;
 		await sleep(TAG_INTERVAL_MS);
 	}
