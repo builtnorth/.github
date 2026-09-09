@@ -41,6 +41,10 @@ jobs:
     timeout-minutes: 360
     env:
       GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+      GIT_AUTHOR_NAME: Dan Northern
+      GIT_AUTHOR_EMAIL: git@dannorthern.com
+      GIT_COMMITTER_NAME: Dan Northern
+      GIT_COMMITTER_EMAIL: git@dannorthern.com
       TARGET: ${{ inputs.target }}
       VERSION: ${{ inputs.version }}
       INCLUDE_DEPENDENTS: ${{ inputs.include_dependents }}
