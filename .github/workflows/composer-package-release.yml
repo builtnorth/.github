@@ -370,16 +370,25 @@ jobs:
                     --exclude='docs' \
                     --exclude='examples' \
                     --exclude='build' \
+                    --exclude='bin' \
                     --exclude='.vscode' \
                     --exclude='.idea' \
                     --exclude='*.log' \
+                    --exclude='*.sh' \
                     --exclude='.DS_Store' \
                     --exclude='Thumbs.db' \
                     --exclude='.gitignore' \
                     --exclude='.gitattributes' \
                     --exclude='phpunit.xml*' \
+                    --exclude='phpunit-coverage.xml' \
+                    --exclude='.phpunit.result.cache' \
+                    --exclude='patchwork.json' \
                     --exclude='phpstan.neon*' \
+                    --exclude='phpcs.xml*' \
                     --exclude='.phpcs.xml*' \
+                    --exclude='webpack*.js' \
+                    --exclude='package.json' \
+                    --exclude='package-lock.json' \
                     --exclude='Makefile' \
                     --exclude='*.md' \
                     . release-archive/
