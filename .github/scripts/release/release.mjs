@@ -2,6 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -358,8 +359,15 @@ function parseFlags(args) {
 	const flags = {
 		targets: [],
 		catalog: DEFAULT_CATALOG,
+		// Clone workspace. CI sets RUNNER_TEMP and the tree is discarded with
+		// the runner. Locally there is no RUNNER_TEMP, and defaulting to
+		// process.cwd() dropped one clone per release target into whatever
+		// directory the script was run from — which is how a stray
+		// release-repositories/ full of repos ended up committed alongside a
+		// working checkout. Fall back to the OS temp dir instead; pass
+		// --workspace to put the clones somewhere specific.
 		workspace: path.resolve(
-			process.env.RUNNER_TEMP || process.cwd(),
+			process.env.RUNNER_TEMP || os.tmpdir(),
 			"release-repositories",
 		),
 		version: null,
