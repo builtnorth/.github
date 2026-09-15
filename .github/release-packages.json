@@ -4,6 +4,7 @@
   "dependencyFormat": "[repository slug, composer|npm|build, committed constraint]",
   "packages": [
     { "slug": "coding-standards", "type": "composer" },
+    { "slug": "wp-mock-stand-ins", "type": "composer" },
     { "slug": "wp-baseline", "type": "composer" },
     { "slug": "wp-config", "type": "composer" },
     { "slug": "wp-environment-indicator", "type": "composer" },
