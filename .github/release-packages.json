@@ -26,7 +26,6 @@
       "type": "composer",
       "dependencies": [["job-dispatcher", "composer", "^2.0"]]
     },
-    { "slug": "polaris-ai", "type": "composer" },
     { "slug": "charts", "type": "npm" },
     { "slug": "wp-component-library", "type": "npm" },
     { "slug": "ui-kit", "type": "npm" },
@@ -45,7 +44,6 @@
       "type": "composer",
       "dependencies": [
         ["extended-cpts-extras", "composer", "^1.2"],
-        ["polaris-ai", "composer", "^2.0"],
         ["polaris-controls", "composer", "^1.0"],
         ["polaris-integrations-lib", "composer", "^1.2"],
         ["wp-baseline", "composer", "^3.3"],

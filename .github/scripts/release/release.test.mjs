@@ -92,7 +92,6 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			.map((edge) => edge.node.slug),
 		[
 			"extended-cpts-extras",
-			"polaris-ai",
 			"polaris-controls",
 			"polaris-integrations-lib",
 			"wp-baseline",
