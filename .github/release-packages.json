@@ -57,6 +57,16 @@
       ]
     },
     {
+      "slug": "polaris-business-profile",
+      "type": "composer",
+      "dependencies": [
+        ["polaris", "composer", "^2.4"],
+        ["polaris", "build", "*"],
+        ["wp-component-library", "npm", "^1.2.5"],
+        ["wp-component-library", "build", "*"]
+      ]
+    },
+    {
       "slug": "polaris-analytics",
       "type": "plugin",
       "dependencies": [
