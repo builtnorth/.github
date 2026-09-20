@@ -78,16 +78,30 @@ RAW_COMPOSER=$(gh api "repos/${ORG}/${SLUG}/contents/composer.json?ref=${TAG}" \
 
 PKG_TYPE=$(echo "$RAW_COMPOSER"    | jq -r '.type        // "library"')
 
-# Libraries: Composer only authenticates GitHub OAuth on api.github.com zipball
-# URLs. github.com/releases/download assets 404 (GitHub hides private files).
-# Plugins: packaged zip includes vendor/; zipball would be source-only.
+# Composer only attaches the github-oauth token to URLs matching
+# ^https?://api\.github\.com/ (see Composer's AuthHelper in vendor/composer). A
+# github.com/releases/download URL therefore gets no Authorization header and
+# 404s on a private repo.
+#
+# Libraries: api.github.com zipball is authenticated and sufficient.
+# Plugins: need the packaged zip (it includes vendor/; zipball is source-only),
+# so use the asset API URL (.url), NOT .browser_download_url.
+#
+# NOTE: api.github.com/.../releases/assets/<id> returns asset *metadata JSON*
+# unless the request sends "Accept: application/octet-stream". Composer does not
+# send that header on its own, so consumers MUST supply it (see
+# claude-docs/ for the COMPOSER_AUTH custom-headers setup). Without it the
+# download "succeeds" with HTTP 200 and writes a ~2KB JSON file named *.zip.
 if [ "$PKG_TYPE" = "wordpress-plugin" ]; then
 	ASSET_URL=$(echo "$RELEASE" | jq -r \
 		--arg slug "$SLUG" --arg ver "$VERSION" \
-		'.assets[] | select(.name == "\($slug)-\($ver).zip" or .name == "\($slug).zip") | .browser_download_url' \
+		'.assets[] | select(.name == "\($slug)-\($ver).zip" or .name == "\($slug).zip") | .url' \
 		2>/dev/null | head -1)
 	if [ -z "$ASSET_URL" ] || [ "$ASSET_URL" = "null" ]; then
-		ASSET_URL="https://github.com/${ORG}/${SLUG}/releases/download/${TAG}/${SLUG}.zip"
+		echo "Error: no packaged zip asset found on ${ORG}/${SLUG}@${TAG}." >&2
+		echo "Expected an asset named ${SLUG}-${VERSION}.zip or ${SLUG}.zip." >&2
+		echo "Refusing to write an unauthenticated releases/download URL (it 404s on private repos)." >&2
+		exit 1
 	fi
 else
 	ASSET_URL="https://api.github.com/repos/${ORG}/${SLUG}/zipball/${TAG}"
