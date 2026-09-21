@@ -53,6 +53,16 @@ on:
         required: false
         type: string
         default: 'from-composer'
+      run-e2e:
+        description: 'Run Playwright e2e (plugin must ship playwright.config.js and npm run test:e2e)'
+        required: false
+        type: boolean
+        default: false
+      run-wp-taint:
+        description: 'Run wp-taint (plugin must ship wp-taint.toml; PHP 8.3 scanner job, plugin runtime stays 8.1)'
+        required: false
+        type: boolean
+        default: false
     secrets:
       POLARIS_PLUGIN_GITHUB_TOKEN:
         required: false
@@ -91,6 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: php-lint
     strategy:
+      fail-fast: false
       matrix:
         php-version: ${{ fromJson(inputs.php-versions) }}
         wordpress-version: ${{ fromJson(inputs.wordpress-versions) }}
@@ -153,7 +164,29 @@ jobs:
         run: |
           npm init -y
           npm install @wordpress/env
+
+          WP_VER="${{ matrix.wordpress-version }}"
+          PHP_VER="${{ matrix.php-version }}"
+          if [ "$WP_VER" = "latest" ]; then
+            CORE=null
+          else
+            CORE="\"WordPress/WordPress#${WP_VER}\""
+          fi
+          cat > .wp-env.override.json <<EOF
+          {
+            "phpVersion": "${PHP_VER}",
+            "core": ${CORE}
+          }
+          EOF
+          echo "wp-env override:"
+          cat .wp-env.override.json
+
           npx wp-env start
+
+      - name: Verify wp-env PHP and WordPress
+        run: |
+          npx wp-env run tests-cli php -r 'echo PHP_VERSION, PHP_EOL;'
+          npx wp-env run tests-cli wp core version
 
       - name: Run PHPUnit tests
         run: |
@@ -323,6 +356,134 @@ jobs:
         run: |
           composer require --dev roave/security-advisories:dev-latest
           composer audit --abandoned=report
+
+  wp-taint:
+    if: inputs.run-wp-taint
+    name: wp-taint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pcntl
+          tools: composer:v2
+
+      - name: Require wp-taint.toml
+        run: |
+          if [ ! -f wp-taint.toml ]; then
+            echo "::error::run-wp-taint is enabled but wp-taint.toml is missing. Copy polaris-seo's wp-taint.toml, wp-taint-bootstrap.php, and wp-taint-baseline.json."
+            exit 1
+          fi
+
+      - name: Install wp-taint
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir wp-taint-tools
+          cd wp-taint-tools
+          composer require enshrined/wp-taint:^0.3 --no-interaction --no-progress
+
+      - name: Scan
+        run: |
+          "${{ runner.temp }}/wp-taint-tools/vendor/bin/wp-taint" scan \
+            --format=sarif \
+            --output=wp-taint.sarif
+
+      - name: Upload SARIF
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@3ea06614dafe36dec890db3446326e0d40ce53d4 # v3
+        with:
+          sarif_file: wp-taint.sarif
+          wait-for-processing: false
+
+  e2e:
+    if: inputs.run-e2e
+    name: E2E Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: php-lint
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.2'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, mysql, mysqli, pdo_mysql, bcmath, soap, intl, gd, exif, iconv
+          coverage: none
+          tools: composer:v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+
+      - name: Configure Composer VCS repositories
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+
+      - name: Install Composer dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+        run: |
+          if [ -f composer.lock ]; then
+            composer install --prefer-dist --no-progress --no-interaction
+          else
+            composer update --prefer-dist --no-progress --no-interaction
+          fi
+
+      - name: Install Playwright tooling
+        run: npm install --omit=prod --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Start wp-env
+        run: |
+          cat > .wp-env.override.json <<EOF
+          {
+            "phpVersion": "8.2",
+            "core": null
+          }
+          EOF
+          npx wp-env start
+
+      - name: Run Playwright
+        env:
+          CI: true
+          WP_USERNAME: admin
+          WP_PASSWORD: password
+        run: npm run test:e2e
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-artifacts
+          path: artifacts/
+          if-no-files-found: ignore
 
   release-check:
     if: inputs.run-release-check && github.event_name == 'pull_request' && github.base_ref == 'main'

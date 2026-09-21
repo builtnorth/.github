@@ -12,6 +12,16 @@ on:
                 required: false
                 type: boolean
                 default: false
+            run-e2e:
+                description: "Run Playwright e2e as part of the pre-release CI gate"
+                required: false
+                type: boolean
+                default: false
+            run-wp-taint:
+                description: "Run wp-taint as part of the pre-release CI gate"
+                required: false
+                type: boolean
+                default: false
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN:
                 required: false
@@ -49,6 +59,12 @@ jobs:
         needs: preflight
         if: needs.preflight.outputs.already_released != 'true'
         uses: builtnorth/.github/.github/workflows/wp-plugin-ci.yml@main
+        permissions:
+            contents: read
+            security-events: write
+        with:
+            run-e2e: ${{ inputs.run-e2e }}
+            run-wp-taint: ${{ inputs.run-wp-taint }}
         secrets:
             POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
 
