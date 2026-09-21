@@ -12,6 +12,16 @@ on:
                 required: false
                 type: boolean
                 default: false
+            php-versions:
+                description: "PHP versions to test against in the pre-release CI gate"
+                required: false
+                type: string
+                default: '["8.1", "8.2"]'
+            wordpress-versions:
+                description: "WordPress versions to test against in the pre-release CI gate"
+                required: false
+                type: string
+                default: '["6.6", "latest"]'
             run-e2e:
                 description: "Run Playwright e2e as part of the pre-release CI gate"
                 required: false
@@ -63,6 +73,8 @@ jobs:
             contents: read
             security-events: write
         with:
+            php-versions: ${{ inputs.php-versions }}
+            wordpress-versions: ${{ inputs.wordpress-versions }}
             run-e2e: ${{ inputs.run-e2e }}
             run-wp-taint: ${{ inputs.run-wp-taint }}
         secrets:
