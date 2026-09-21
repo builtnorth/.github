@@ -16,7 +16,7 @@ on:
                 description: "PHP versions to test against in the pre-release CI gate"
                 required: false
                 type: string
-                default: '["8.1", "8.2"]'
+                default: '["8.1", "8.2", "8.3", "8.4"]'
             wordpress-versions:
                 description: "WordPress versions to test against in the pre-release CI gate"
                 required: false
