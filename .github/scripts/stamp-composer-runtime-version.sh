@@ -35,6 +35,14 @@ stamp_constant() {
 	stamped=1
 }
 
+# Source of truth for packages that participate in novalis/package-loader
+# arbitration. Readable before any autoloader runs, which is the whole point —
+# bundled copies are compared before a decision is made about whose classes to
+# load, so a stale value here makes the coordinator pick the wrong copy.
+stamp_constant \
+	"version.php" \
+	"/(return\s+')[^']+(';)/"
+
 stamp_constant \
 	"inc/Core/Constants.php" \
 	"/((?:public\s+)?const\s+VERSION\s*=\s*')[^']+(';)/"
