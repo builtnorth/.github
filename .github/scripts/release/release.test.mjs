@@ -56,6 +56,33 @@ test("Conventional commits calculate independent bumps", () => {
 	assert.equal(classifyCommits(["feat!: replace dispatcher API"]), "major");
 });
 
+test("1.x and later bump normally", () => {
+	assert.equal(bumpVersion("1.2.3", "patch"), "1.2.4");
+	assert.equal(bumpVersion("1.2.3", "minor"), "1.3.0");
+	assert.equal(bumpVersion("1.2.3", "major"), "2.0.0");
+	assert.equal(bumpVersion("2.5.0", "major"), "3.0.0");
+});
+
+test("pre-1.0 packages stay pre-1.0", () => {
+	// Breaking changes move the minor, which is the breaking-change position
+	// below 1.0 -- never the major, which would eject the package from 0.x.
+	assert.equal(bumpVersion("0.4.2", "major"), "0.5.0");
+	assert.equal(bumpVersion("0.1.0", "major"), "0.2.0");
+	// Features and fixes both move the patch, keeping `^0.x` consumers working.
+	assert.equal(bumpVersion("0.4.2", "minor"), "0.4.3");
+	assert.equal(bumpVersion("0.4.2", "patch"), "0.4.3");
+	assert.equal(bumpVersion("0.0.0", "major"), "0.1.0");
+});
+
+test("a 0.x bump keeps satisfying its own caret constraint", () => {
+	// The practical guarantee: a non-breaking release must not fall outside the
+	// constraint consumers have committed.
+	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "minor")), true);
+	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "patch")), true);
+	// ...and a breaking one must, so the mismatch surfaces as a blocker.
+	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "major")), false);
+});
+
 test("changed dependencies are never released unless explicitly selected", () => {
 	const instantActions = packageNode("instant-actions");
 	const dispatcher = packageNode("job-dispatcher");
@@ -80,7 +107,7 @@ test("changed dependencies are never released unless explicitly selected", () =>
 test("catalog provides the release graph without Basecamp paths", () => {
 	const graph = loadGraph();
 	const dispatcher = graph.nodes.find((node) => node.slug === "job-dispatcher");
-	assert.equal(graph.nodes.length, 33);
+	assert.equal(graph.nodes.length, 40);
 	assert.deepEqual(
 		dispatcher.dependencies.map((edge) => edge.node.slug),
 		["instant-actions"],

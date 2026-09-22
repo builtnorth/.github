@@ -112,6 +112,16 @@ export function constraintAllows(constraint, version) {
 
 export function bumpVersion(version, bump = "patch") {
 	const parsed = parseVersion(version) || [0, 0, 0];
+	// Pre-1.0 packages stay pre-1.0. Composer treats the minor position as the
+	// breaking-change position below 1.0 (`^0.3` allows >=0.3.0 <0.4.0), so a
+	// breaking change bumps the minor and everything else bumps the patch.
+	// Without this a single `feat!:` would suggest 1.0.0 and silently eject the
+	// package from its 0.x line, invalidating every `^0.x` constraint on it.
+	// Graduating to 1.0.0 is deliberate: `release.mjs --version 1.0.0`.
+	if (parsed[0] === 0) {
+		if (bump === "major") return `0.${parsed[1] + 1}.0`;
+		return `0.${parsed[1]}.${parsed[2] + 1}`;
+	}
 	if (bump === "major") return `${parsed[0] + 1}.0.0`;
 	if (bump === "minor") return `${parsed[0]}.${parsed[1] + 1}.0`;
 	return `${parsed[0]}.${parsed[1]}.${parsed[2] + 1}`;
