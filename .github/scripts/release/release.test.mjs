@@ -109,18 +109,25 @@ test("catalog provides the release graph without Basecamp paths", () => {
 	const dispatcher = graph.nodes.find((node) => node.slug === "job-dispatcher");
 	assert.equal(graph.nodes.length, 40);
 	assert.deepEqual(
-		dispatcher.dependencies.map((edge) => edge.node.slug),
-		["instant-actions"],
+		dispatcher.dependencies.map((edge) => edge.node.slug).sort(),
+		["instant-actions", "package-loader"],
 	);
 	const polaris = graph.nodes.find((node) => node.slug === "polaris");
 	assert.deepEqual(
 		polaris.dependencies
 			.filter((edge) => edge.kind === "composer")
-			.map((edge) => edge.node.slug),
+			.map((edge) => edge.node.slug)
+			.sort(),
 		[
+			"atomic-store",
 			"extended-cpts-extras",
+			"meridian-rest",
+			"novalis-config",
+			"package-loader",
 			"polaris-controls",
 			"polaris-integrations-lib",
+			"polaris-license",
+			"secret-cipher",
 			"wp-baseline",
 			"wp-environment-indicator",
 			"wp-portability",

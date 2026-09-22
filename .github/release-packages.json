@@ -13,24 +13,84 @@
     { "slug": "wp-schema", "type": "composer" },
     { "slug": "wp-cli-builtnorth", "type": "composer" },
     { "slug": "package-loader", "type": "composer" },
-    { "slug": "atomic-store", "type": "composer" },
-    { "slug": "novalis-config", "type": "composer" },
-    { "slug": "meridian-rest", "type": "composer" },
-    { "slug": "secret-cipher", "type": "composer" },
-    { "slug": "polaris-license", "type": "composer" },
-    { "slug": "instant-actions", "type": "composer" },
-    { "slug": "polaris-integrations-lib", "type": "composer" },
-    { "slug": "polaris-controls", "type": "composer" },
+    {
+      "slug": "atomic-store",
+      "type": "composer",
+      "dependencies": [
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "novalis-config",
+      "type": "composer",
+      "dependencies": [
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "meridian-rest",
+      "type": "composer",
+      "dependencies": [
+        ["atomic-store", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "secret-cipher",
+      "type": "composer",
+      "dependencies": [
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "polaris-license",
+      "type": "composer",
+      "dependencies": [
+        ["meridian-rest", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "instant-actions",
+      "type": "composer",
+      "dependencies": [
+        ["atomic-store", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "polaris-integrations-lib",
+      "type": "composer",
+      "dependencies": [
+        ["atomic-store", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
+      "slug": "polaris-controls",
+      "type": "composer",
+      "dependencies": [
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
     { "slug": "theme-skin-switcher", "type": "composer" },
     {
       "slug": "job-dispatcher",
       "type": "composer",
-      "dependencies": [["instant-actions", "composer", "^0.1"]]
+      "dependencies": [
+        ["instant-actions", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
     },
     {
       "slug": "wp-portability",
       "type": "composer",
-      "dependencies": [["job-dispatcher", "composer", "^0.1"]]
+      "dependencies": [
+        ["job-dispatcher", "composer", "^0.1"],
+        ["atomic-store", "composer", "^0.1"],
+        ["meridian-rest", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
     },
     { "slug": "charts", "type": "npm" },
     { "slug": "wp-component-library", "type": "npm" },
@@ -56,6 +116,12 @@
         ["wp-environment-indicator", "composer", "^1.0"],
         ["wp-portability", "composer", "^0.1"],
         ["wp-utility", "composer", "^2.4"],
+        ["atomic-store", "composer", "^0.1"],
+        ["meridian-rest", "composer", "^0.1"],
+        ["novalis-config", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"],
+        ["polaris-license", "composer", "^0.1"],
+        ["secret-cipher", "composer", "^0.1"],
         ["charts", "npm", "^1.3.0"],
         ["charts", "build", "*"],
         ["wp-component-library", "npm", "^1.2.5"],
