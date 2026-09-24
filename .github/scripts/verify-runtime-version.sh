@@ -3,7 +3,7 @@
 #
 # The stamping step is skipped on tag pushes, where the tag is authoritative and
 # nothing rewrites the files. That is harmless for display-only constants, but
-# version.php feeds novalis/package-loader's arbitration: a stale value makes a
+# version.php feeds navas/package-loader's arbitration: a stale value makes a
 # newly released copy advertise an older version and lose to a genuinely older
 # bundle on a site running both. Fail loudly instead of shipping that.
 set -euo pipefail

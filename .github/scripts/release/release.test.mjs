@@ -120,6 +120,8 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			.sort(),
 		[
 			"atomic-store",
+			"baseline",
+			"environment-indicator",
 			"extended-cpts-extras",
 			"meridian-rest",
 			"novalis-config",
@@ -128,10 +130,8 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			"polaris-integrations-lib",
 			"polaris-license",
 			"secret-cipher",
-			"wp-baseline",
-			"wp-environment-indicator",
+			"utility",
 			"wp-portability",
-			"wp-utility",
 		],
 	);
 	assert.equal(graph.nodes.some((node) => "path" in node), false);
