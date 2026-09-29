@@ -80,7 +80,10 @@ test("a 0.x bump keeps satisfying its own caret constraint", () => {
 	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "minor")), true);
 	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "patch")), true);
 	// ...and a breaking one must, so the mismatch surfaces as a blocker.
-	assert.equal(constraintAllows("^0.4", bumpVersion("0.4.2", "major")), false);
+	assert.equal(
+		constraintAllows("^0.4", bumpVersion("0.4.2", "major")),
+		false,
+	);
 });
 
 test("changed dependencies are never released unless explicitly selected", () => {
@@ -106,7 +109,9 @@ test("changed dependencies are never released unless explicitly selected", () =>
 
 test("catalog provides the release graph without Basecamp paths", () => {
 	const graph = loadGraph();
-	const dispatcher = graph.nodes.find((node) => node.slug === "job-dispatcher");
+	const dispatcher = graph.nodes.find(
+		(node) => node.slug === "job-dispatcher",
+	);
 	assert.equal(graph.nodes.length, 40);
 	assert.deepEqual(
 		dispatcher.dependencies.map((edge) => edge.node.slug).sort(),
@@ -122,19 +127,22 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			"atomic-store",
 			"baseline",
 			"environment-indicator",
-			"extended-cpts-extras",
-			"meridian-rest",
 			"novalis-config",
 			"package-loader",
 			"polaris-controls",
 			"polaris-integrations-lib",
 			"polaris-license",
+			"post-types",
+			"rest-access",
 			"secret-cipher",
 			"utility",
 			"wp-portability",
 		],
 	);
-	assert.equal(graph.nodes.some((node) => "path" in node), false);
+	assert.equal(
+		graph.nodes.some((node) => "path" in node),
+		false,
+	);
 });
 
 test("dependents are never added implicitly", () => {
@@ -189,7 +197,7 @@ test("build-time consumers require committed rebuilt assets", () => {
 	const plan = buildPlan({
 		nodes: [charts, plugin],
 		states: {
-		charts: state("1.3.0", { changed: true, buildChanged: true }),
+			charts: state("1.3.0", { changed: true, buildChanged: true }),
 			"polaris-seo": state("1.4.9"),
 		},
 		targetSlugs: ["charts", "polaris-seo"],
@@ -216,5 +224,6 @@ test("orchestrator does not contain Actions run polling commands", () => {
 		["gh", "run", "list"].join(" "),
 		["/actions", "/jobs"].join(""),
 	];
-	for (const value of banned) assert.equal(script.includes(value), false, value);
+	for (const value of banned)
+		assert.equal(script.includes(value), false, value);
 });

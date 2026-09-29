@@ -9,26 +9,30 @@
     { "slug": "wp-config", "type": "composer" },
     { "slug": "environment-indicator", "type": "composer" },
     { "slug": "utility", "type": "composer" },
-    { "slug": "structured-data", "type": "composer", "dependencies": [["package-loader", "composer", "^0.1"]] },
-    { "slug": "post-types", "type": "composer", "dependencies": [["package-loader", "composer", "^0.1"]] },
+    {
+      "slug": "structured-data",
+      "type": "composer",
+      "dependencies": [["package-loader", "composer", "^0.1"]]
+    },
+    {
+      "slug": "post-types",
+      "type": "composer",
+      "dependencies": [["package-loader", "composer", "^0.1"]]
+    },
     { "slug": "wp-cli-builtnorth", "type": "composer" },
     { "slug": "package-loader", "type": "composer" },
     {
       "slug": "atomic-store",
       "type": "composer",
-      "dependencies": [
-        ["package-loader", "composer", "^0.1"]
-      ]
+      "dependencies": [["package-loader", "composer", "^0.1"]]
     },
     {
       "slug": "novalis-config",
       "type": "composer",
-      "dependencies": [
-        ["package-loader", "composer", "^0.1"]
-      ]
+      "dependencies": [["package-loader", "composer", "^0.1"]]
     },
     {
-      "slug": "meridian-rest",
+      "slug": "rest-access",
       "type": "composer",
       "dependencies": [
         ["atomic-store", "composer", "^0.1"],
@@ -38,15 +42,13 @@
     {
       "slug": "secret-cipher",
       "type": "composer",
-      "dependencies": [
-        ["package-loader", "composer", "^0.1"]
-      ]
+      "dependencies": [["package-loader", "composer", "^0.1"]]
     },
     {
       "slug": "polaris-license",
       "type": "composer",
       "dependencies": [
-        ["meridian-rest", "composer", "^0.1"],
+        ["rest-access", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
@@ -69,9 +71,7 @@
     {
       "slug": "polaris-controls",
       "type": "composer",
-      "dependencies": [
-        ["package-loader", "composer", "^0.1"]
-      ]
+      "dependencies": [["package-loader", "composer", "^0.1"]]
     },
     { "slug": "theme-skin-switcher", "type": "composer" },
     {
@@ -88,7 +88,7 @@
       "dependencies": [
         ["job-dispatcher", "composer", "^0.1"],
         ["atomic-store", "composer", "^0.1"],
-        ["meridian-rest", "composer", "^0.1"],
+        ["rest-access", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
@@ -117,7 +117,7 @@
         ["wp-portability", "composer", "^0.1"],
         ["utility", "composer", "^0.1"],
         ["atomic-store", "composer", "^0.1"],
-        ["meridian-rest", "composer", "^0.1"],
+        ["rest-access", "composer", "^0.1"],
         ["novalis-config", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"],
         ["polaris-license", "composer", "^0.1"],
