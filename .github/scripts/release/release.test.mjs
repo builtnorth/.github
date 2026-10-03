@@ -112,7 +112,7 @@ test("catalog provides the release graph without Basecamp paths", () => {
 	const dispatcher = graph.nodes.find(
 		(node) => node.slug === "job-dispatcher",
 	);
-	assert.equal(graph.nodes.length, 40);
+	assert.equal(graph.nodes.length, 43);
 	assert.deepEqual(
 		dispatcher.dependencies.map((edge) => edge.node.slug).sort(),
 		["instant-actions", "package-loader"],
@@ -124,6 +124,7 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			.map((edge) => edge.node.slug)
 			.sort(),
 		[
+			"abilities",
 			"atomic-store",
 			"baseline",
 			"environment-indicator",
@@ -132,6 +133,8 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			"polaris-controls",
 			"polaris-integrations-lib",
 			"polaris-license",
+			"polaris-module-ai",
+			"polaris-whitelabel",
 			"post-types",
 			"rest-access",
 			"secret-cipher",
