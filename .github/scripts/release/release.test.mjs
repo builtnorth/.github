@@ -128,6 +128,7 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			"atomic-store",
 			"baseline",
 			"environment-indicator",
+			"job-dispatcher",
 			"novalis-config",
 			"package-loader",
 			"polaris-controls",

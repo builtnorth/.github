@@ -73,7 +73,14 @@
       "type": "composer",
       "dependencies": [["package-loader", "composer", "^0.1"]]
     },
-    { "slug": "theme-skin-switcher", "type": "composer" },
+    {
+      "slug": "theme-skin-switcher",
+      "type": "composer",
+      "dependencies": [
+        ["rest-access", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
     {
       "slug": "job-dispatcher",
       "type": "composer",
@@ -89,6 +96,7 @@
         ["job-dispatcher", "composer", "^0.1"],
         ["atomic-store", "composer", "^0.1"],
         ["rest-access", "composer", "^0.1"],
+        ["secret-cipher", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
@@ -99,7 +107,7 @@
       "slug": "wp-blocks",
       "type": "npm",
       "dependencies": [
-        ["ui-kit", "npm", "^1.5.0"],
+        ["ui-kit", "npm", "^2.0.0"],
         ["wp-component-library", "npm", "^1.2.5"],
         ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"]
@@ -129,7 +137,6 @@
     {
       "slug": "polaris-whitelabel",
       "type": "composer",
-      "releasable": false,
       "dependencies": [
         ["package-loader", "composer", "^0.1"],
         ["rest-access", "composer", "^0.1"]
@@ -152,9 +159,12 @@
         ["package-loader", "composer", "^0.1"],
         ["polaris-license", "composer", "^0.1"],
         ["secret-cipher", "composer", "^0.1"],
+        ["job-dispatcher", "composer", "^0.1"],
         ["abilities", "composer", "^0.1"],
         ["polaris-module-ai", "composer", "^1.0"],
         ["polaris-whitelabel", "composer", "^1.0"],
+        ["polaris-module-ai", "build", "*"],
+        ["polaris-whitelabel", "build", "*"],
         ["charts", "npm", "^1.3.0"],
         ["charts", "build", "*"],
         ["wp-component-library", "npm", "^1.2.5"],
