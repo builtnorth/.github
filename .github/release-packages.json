@@ -94,7 +94,6 @@
       "type": "composer",
       "dependencies": [
         ["job-dispatcher", "composer", "^0.1"],
-        ["atomic-store", "composer", "^0.1"],
         ["rest-access", "composer", "^0.1"],
         ["secret-cipher", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
