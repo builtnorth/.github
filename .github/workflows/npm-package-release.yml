@@ -239,6 +239,27 @@ jobs:
           cp README.md release-package/ || true
           cp LICENSE release-package/ || true
 
+          # Also ship whatever main, module and the exports map point at
+          # outside build/ and src/ (e.g. "./constants/*": "./constants/*.js").
+          node -e "
+          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          const entries = new Set();
+          const walk = (value) => {
+            if (typeof value === 'string') {
+              const top = value.replace(/^\.\//, '').split('/')[0];
+              if (top && !top.includes('*') && top !== '..') entries.add(top);
+            } else if (value && typeof value === 'object') {
+              Object.values(value).forEach(walk);
+            }
+          };
+          [pkg.main, pkg.module, pkg.exports].forEach(walk);
+          console.log([...entries].join('\n'));
+          " | while read -r entry; do
+            if [ -n "$entry" ] && [ -e "$entry" ] && [ ! -e "release-package/$entry" ]; then
+              cp -r "$entry" release-package/
+            fi
+          done
+
           # Update package.json to point to built files
           cd release-package
           node -e "
