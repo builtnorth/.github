@@ -665,7 +665,8 @@ async function executePlan(plan) {
 		console.log(`  Tracking run ${runId} — waiting for completion...`);
 		await waitForRun(node.repo, runId);
 
-		if (node.type !== "npm") {
+		// Themes aren't in the private Composer index: nothing requires a theme through Composer.
+		if (node.type !== "npm" && node.type !== "theme") {
 			console.log(`Waiting for builtnorth/${node.slug} ${version} in Composer...`);
 			await waitForComposerIndex(composerIndex, node, version);
 		}
