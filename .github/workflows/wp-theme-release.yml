@@ -1,0 +1,389 @@
+name: Reusable WordPress Theme Release
+
+on:
+    workflow_call:
+        inputs:
+            version:
+                description: "Release version (e.g., 1.2.0)"
+                required: true
+                type: string
+            prerelease:
+                description: "Is this a pre-release?"
+                required: false
+                type: boolean
+                default: false
+        secrets:
+            POLARIS_PLUGIN_GITHUB_TOKEN:
+                required: false
+
+concurrency:
+    group: release-${{ github.repository }}
+    cancel-in-progress: false
+
+jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            already_released: ${{ steps.release.outputs.already_released }}
+        steps:
+            - name: Check release idempotency
+              id: release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  VERSION="${{ inputs.version }}"
+                  TAG="v${VERSION#v}"
+                  if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+                    echo "already_released=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                  echo "already_released=false" >> "$GITHUB_OUTPUT"
+                  if gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+                    echo "::error::Tag $TAG exists without a release. Resolve that partial release before retrying."
+                    exit 1
+                  fi
+
+    lint:
+        needs: preflight
+        if: needs.preflight.outputs.already_released != 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        strategy:
+            matrix:
+                php-version: ["8.1", "8.4"]
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+              with:
+                  php-version: ${{ matrix.php-version }}
+
+            # Themes have no test suite; a syntax error in any shipped PHP file
+            # would fatal every request on the site using the theme.
+            - name: Lint PHP
+              run: |
+                  find . -name '*.php' -not -path './vendor/*' -not -path './node_modules/*' -print0 \
+                    | xargs -0 -n1 -P4 php -l -d display_errors=1 > /tmp/php-lint.log || { grep -v '^No syntax errors' /tmp/php-lint.log; exit 1; }
+
+    build:
+        needs: [preflight, lint]
+        if: needs.preflight.outputs.already_released != 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  submodules: false
+                  fetch-depth: 0
+
+            - name: Get version from input
+              id: version
+              run: |
+                  VERSION="${{ inputs.version }}"
+                  # Remove 'v' prefix if provided
+                  VERSION="${VERSION#v}"
+                  echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+                  echo "VERSION_TAG=v$VERSION" >> $GITHUB_OUTPUT
+                  echo "THEME_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_OUTPUT
+
+            - name: Update theme version
+              run: |
+                  # Update the Version header in style.css
+                  sed -i "s/Version:\s*[0-9]\+\.[0-9]\+\.[0-9]\+/Version: ${{ steps.version.outputs.VERSION }}/" style.css
+
+                  # Update this theme's own version constant (e.g. COMPASS_WAAS_VERSION) if it exists
+                  THEME_CONST=$(echo "${{ steps.version.outputs.THEME_NAME }}" | tr '[:lower:]' '[:upper:]' | tr '-' '_')
+                  if [ -f functions.php ] && grep -q "define('${THEME_CONST}_VERSION'" functions.php; then
+                      sed -i "s/define('${THEME_CONST}_VERSION',\s*['\"][0-9]\+\.[0-9]\+\.[0-9]\+['\"]/define('${THEME_CONST}_VERSION', '${{ steps.version.outputs.VERSION }}'/" functions.php
+                  fi
+
+                  # Update version in composer.json if it has one
+                  if [ -f composer.json ] && grep -q '"version"' composer.json; then
+                      jq '.version = "${{ steps.version.outputs.VERSION }}"' composer.json > composer.tmp.json
+                      mv composer.tmp.json composer.json
+                  fi
+
+                  # Update version in package.json if it exists
+                  if [ -f package.json ]; then
+                      npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+                  fi
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+              with:
+                  php-version: "8.2"
+                  tools: composer:v2
+
+            - name: Get Composer cache directory
+              id: composer-cache
+              run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+            - name: Cache Composer packages
+              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+              with:
+                  path: ${{ steps.composer-cache.outputs.dir }}
+                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+                  restore-keys: ${{ runner.os }}-composer-
+
+            - name: Configure Composer for private repos
+              env:
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+              run: |
+                  # Auth is configured via COMPOSER_AUTH env variable
+                  echo "Composer auth configured via environment"
+
+            - name: Checkout shared release scripts
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  repository: builtnorth/.github
+                  ref: main
+                  path: _builtnorth-github
+
+            - name: Configure git for Composer VCS clones
+              run: |
+                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
+                  git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
+
+            - name: Update composer.json for production
+              env:
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+              run: |
+                  # Derive VCS mirrors from this theme's composer.json (no kitchen-sink).
+                  bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh from-composer
+
+                  # Remove the version field that causes warnings
+                  composer config --unset version || true
+
+            - name: Preserve committed builtnorth dependency constraints
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
+
+            - name: Validate committed Composer constraints
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh validate
+
+            - name: Finalize production dependency lock
+              env:
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+              run: |
+                  composer config optimize-autoloader true
+                  composer config classmap-authoritative true
+                  composer config prepend-autoloader true
+                  composer update --no-dev --no-scripts --no-interaction --prefer-dist
+                  echo "=== Resolved versions ==="
+                  composer show --locked 2>/dev/null | grep builtnorth || true
+
+            - name: Verify production Composer lock
+              run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
+
+            - name: Commit finalized manifests and lock
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -- '*.php' style.css composer.json composer.lock package.json package-lock.json 2>/dev/null || true
+                  if ! git diff --cached --quiet; then
+                    git commit -m "chore: prepare ${{ steps.version.outputs.VERSION_TAG }} release"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Install production dependencies from lock
+              env:
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+              run: |
+                  rm -rf vendor
+                  composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-dist --no-interaction
+
+            - name: Generate readme.txt
+              run: |
+                  # Run the readme generation script if it exists
+                  if [ -f "bin/generate-readme.php" ]; then
+                      php bin/generate-readme.php
+                      echo "readme.txt generated successfully"
+                  fi
+
+            - name: Verify committed production artifacts
+              run: |
+                  if [ -d build ] && grep -RIl --include='*.js' --fixed-strings '// webpackBootstrap' build/; then
+                    echo "::error::Committed build/ contains development webpack bundles. Run the local release prebuild, commit its production output, and retry."
+                    exit 1
+                  fi
+
+            - name: Create theme zip
+              run: |
+                  # Create a directory for the theme
+                  mkdir -p ${{ steps.version.outputs.THEME_NAME }}
+
+                  # Determine which directories and files to include. Source
+                  # (src/, theme-config/, scripts/, bin/, docs/) is never shipped,
+                  # so PHP must not read files from those folders at runtime.
+                  INCLUDE_DIRS=""
+                  for dir in build parts patterns templates styles inc vendor assets languages design-skins fonts; do
+                      [ -d "$dir" ] && INCLUDE_DIRS="$INCLUDE_DIRS $dir"
+                  done
+
+                  # Copy only the production files we need
+                  cp -r $INCLUDE_DIRS *.php style.css composer.json composer.lock ${{ steps.version.outputs.THEME_NAME }}/ 2>/dev/null || true
+                  for file in theme.json screenshot.png README.md readme.txt LICENSE; do
+                      [ -f "$file" ] && cp "$file" ${{ steps.version.outputs.THEME_NAME }}/
+                  done
+
+                  # Defensive: dist installs (--prefer-dist above) shouldn't leave
+                  # vendor/*/.git behind, but strip it if present — a stray .git
+                  # dir previously bloated releases past raw.githubusercontent.com's
+                  # size limit for the private Composer index's mirrored dist.
+                  find ${{ steps.version.outputs.THEME_NAME }}/vendor -type d -name ".git" -prune -exec rm -rf {} + 2>/dev/null || true
+
+                  # Source maps are dev-only debugging artifacts, not needed in production.
+                  find ${{ steps.version.outputs.THEME_NAME }}/build -type f \( -name "*.js.map" -o -name "*.css.map" \) -delete 2>/dev/null || true
+
+                  # Create the zip (src directory is not copied, so no need to exclude)
+                  zip -r ${{ steps.version.outputs.THEME_NAME }}.zip ${{ steps.version.outputs.THEME_NAME }}/
+
+                  # Clean up
+                  rm -rf ${{ steps.version.outputs.THEME_NAME }}
+
+                  echo "Theme zip created:"
+                  ls -la *.zip
+
+            - name: Generate release notes
+              id: release_notes
+              run: |
+                  CURRENT="${{ steps.version.outputs.VERSION_TAG }}"
+                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF "$CURRENT" | sed -n '1p' || true)
+
+                  if [ -z "$PREVIOUS_TAG" ]; then
+                      echo "No previous tag found, this is the first release"
+                      PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+                  fi
+
+                  echo "Comparing changes from $PREVIOUS_TAG to HEAD ($CURRENT)"
+
+                  COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
+
+                  # Group commits by type. Matches plain (fix:), scoped (fix(auth):),
+                  # and breaking (fix!:, fix(auth)!:) Conventional Commits forms —
+                  # a bare type: with no scope support silently drops scoped commits
+                  # into "Other Changes".
+                  SCOPE='(\([^)]*\))?!?'
+                  FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature)${SCOPE}:" || true)
+                  FIXES=$(echo "$COMMITS" | grep -iE "^- (fix|bugfix)${SCOPE}:" || true)
+                  DOCS=$(echo "$COMMITS" | grep -iE "^- (docs|documentation)${SCOPE}:" || true)
+                  REFACTOR=$(echo "$COMMITS" | grep -iE "^- (refactor|refactoring)${SCOPE}:" || true)
+                  TEST=$(echo "$COMMITS" | grep -iE "^- (test|tests)${SCOPE}:" || true)
+                  CHORE=$(echo "$COMMITS" | grep -iE "^- (chore|build|ci)${SCOPE}:" || true)
+                  OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|feature|fix|bugfix|docs|documentation|refactor|refactoring|test|tests|chore|build|ci)${SCOPE}:" || true)
+
+                  # Build changelog
+                  CHANGELOG="## What's Changed in ${{ steps.version.outputs.THEME_NAME }} ${{ steps.version.outputs.VERSION_TAG }}"$'\n\n'
+                  if [ -n "$FEATURES" ]; then
+                    CHANGELOG="${CHANGELOG}### Features"$'\n'"${FEATURES}"$'\n\n'
+                  fi
+                  if [ -n "$FIXES" ]; then
+                    CHANGELOG="${CHANGELOG}### Bug Fixes"$'\n'"${FIXES}"$'\n\n'
+                  fi
+                  if [ -n "$DOCS" ]; then
+                    CHANGELOG="${CHANGELOG}### Documentation"$'\n'"${DOCS}"$'\n\n'
+                  fi
+                  if [ -n "$REFACTOR" ]; then
+                    CHANGELOG="${CHANGELOG}### Refactoring"$'\n'"${REFACTOR}"$'\n\n'
+                  fi
+                  if [ -n "$TEST" ]; then
+                    CHANGELOG="${CHANGELOG}### Tests"$'\n'"${TEST}"$'\n\n'
+                  fi
+                  if [ -n "$CHORE" ]; then
+                    CHANGELOG="${CHANGELOG}### Maintenance"$'\n'"${CHORE}"$'\n\n'
+                  fi
+                  if [ -n "$OTHER" ]; then
+                    CHANGELOG="${CHANGELOG}### Other Changes"$'\n'"${OTHER}"$'\n\n'
+                  fi
+                  if [ -z "$COMMITS" ]; then
+                    CHANGELOG="${CHANGELOG}No changes recorded since ${PREVIOUS_TAG}."$'\n\n'
+                  fi
+
+                  CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${{ steps.version.outputs.VERSION_TAG }}"
+
+                  # Save to output
+                  echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+
+                  # Use EOF to handle multiline output
+                  echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+                  echo "$CHANGELOG" >> $GITHUB_OUTPUT
+                  echo "EOF" >> $GITHUB_OUTPUT
+
+            - name: Update CHANGELOG.md
+              run: |
+                  # Update CHANGELOG.md with the new version
+                  if [ -f CHANGELOG.md ]; then
+                      # Get today's date
+                      TODAY=$(date +"%Y-%m-%d")
+                      
+                      # Replace [Unreleased] with the new version
+                      sed -i "s/## \[Unreleased\]/## [${{ steps.version.outputs.VERSION }}] - $TODAY/" CHANGELOG.md
+                      
+                      # Add new [Unreleased] section at the top
+                      sed -i "/^## \[${{ steps.version.outputs.VERSION }}\]/i\\## [Unreleased]\\n" CHANGELOG.md
+                      
+                  fi
+
+            - name: Commit finalized release source
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -- readme.txt CHANGELOG.md 2>/dev/null || true
+                  if ! git diff --cached --quiet; then
+                    git commit -m "docs: finalize ${{ steps.version.outputs.VERSION_TAG }} release files"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Create exact-source tag
+              run: |
+                  TAG="${{ steps.version.outputs.VERSION_TAG }}"
+                  git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    if [ "$(git rev-list -n1 "$TAG")" != "$(git rev-parse HEAD)" ]; then
+                      echo "::error::Tag $TAG already exists but does not point to finalized HEAD."
+                      exit 1
+                    fi
+                    echo "Tag $TAG already points to finalized HEAD."
+                  else
+                    git tag -a "$TAG" -m "Release $TAG"
+                    git push origin "$TAG"
+                  fi
+
+                  {
+                    printf '# source-commit %s\n' "$(git rev-parse HEAD)"
+                    unzip -Z1 "${{ steps.version.outputs.THEME_NAME }}.zip" | LC_ALL=C sort
+                  } > "${{ steps.version.outputs.THEME_NAME }}.manifest.txt"
+                  sha256sum "${{ steps.version.outputs.THEME_NAME }}.zip" > "${{ steps.version.outputs.THEME_NAME }}.zip.sha256"
+
+            # Use github.token here so release creation is not tied to POLARIS_PLUGIN_GITHUB_TOKEN
+            # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
+            # Contents: write on this repo causes gh release create to return HTTP 403.
+            - name: Create Release with GitHub CLI
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+              run: |
+                  if gh release view "${{ steps.version.outputs.VERSION_TAG }}" >/dev/null 2>&1; then
+                    echo "Release ${{ steps.version.outputs.VERSION_TAG }} already exists; nothing to publish."
+                    exit 0
+                  fi
+
+                  PRERELEASE_FLAG=""
+                  if [ "${{ inputs.prerelease }}" = "true" ]; then
+                      PRERELEASE_FLAG="--prerelease"
+                  fi
+
+                  echo "${{ steps.release_notes.outputs.CHANGELOG }}" > release_notes.md
+
+                  gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
+                    --title "${{ steps.version.outputs.VERSION_TAG }}" \
+                    --notes-file release_notes.md \
+                    $PRERELEASE_FLAG \
+                    ${{ steps.version.outputs.THEME_NAME }}.zip \
+                    ${{ steps.version.outputs.THEME_NAME }}.manifest.txt \
+                    ${{ steps.version.outputs.THEME_NAME }}.zip.sha256
