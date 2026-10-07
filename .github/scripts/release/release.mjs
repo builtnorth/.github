@@ -563,8 +563,24 @@ function composerIndexHasVersion(indexPath, packageName, version) {
 	});
 }
 
+/**
+ * The name a package is indexed under: its own composer.json "name" (a vendor
+ * other than builtnorth, such as navas/utility, is common), a catalog
+ * `composerName` override, else builtnorth/<slug>.
+ */
+export function composerPackageName(node) {
+	if (node.composerName) return node.composerName;
+	let name = null;
+	try {
+		name = node.absolutePath ? readJson(path.join(node.absolutePath, "composer.json")).name : null;
+	} catch {
+		// No readable composer.json: fall back to the org name.
+	}
+	return typeof name === "string" && name !== "" ? name : `builtnorth/${node.slug}`;
+}
+
 async function waitForComposerIndex(indexPath, node, version) {
-	const packageName = `builtnorth/${node.slug}`;
+	const packageName = composerPackageName(node);
 	const started = Date.now();
 	while (Date.now() - started < COMPOSER_INDEX_TIMEOUT_MS) {
 		if (composerIndexHasVersion(indexPath, packageName, version)) return;
@@ -667,7 +683,7 @@ async function executePlan(plan) {
 
 		// Themes aren't in the private Composer index: nothing requires a theme through Composer.
 		if (node.type !== "npm" && node.type !== "theme") {
-			console.log(`Waiting for builtnorth/${node.slug} ${version} in Composer...`);
+			console.log(`Waiting for ${composerPackageName(node)} ${version} in Composer...`);
 			await waitForComposerIndex(composerIndex, node, version);
 		}
 	}

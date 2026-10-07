@@ -2,8 +2,14 @@
 # Update the private builtnorth/registry index with a newly released package.
 #
 # Usage:
-#   update-composer-index.sh <composer-namespace> <version>
-#   e.g. update-composer-index.sh builtnorth/instant-actions 2.0.1
+#   update-composer-index.sh <composer-name> <version> [<repo>]
+#   e.g. update-composer-index.sh navas/utility 2.0.1 utility
+#
+# The index entry is keyed by the Composer name (the package's composer.json
+# "name"); release metadata is read from the GitHub repo <org>/<repo>. The two
+# differ for packages whose vendor isn't the org (navas/utility lives in
+# builtnorth/utility), so pass the repo. Without it, the repo is the Composer
+# name minus "<org>/".
 #
 # Environment:
 #   GH_TOKEN  — PAT with repo scope across all builtnorth/* repos (required)
@@ -15,9 +21,10 @@ set -euo pipefail
 
 PACKAGE="${1:-}"
 VERSION="${2:-}"
+REPO="${3:-}"
 
 if [ -z "$PACKAGE" ] || [ -z "$VERSION" ]; then
-	echo "Usage: update-composer-index.sh <composer-namespace> <version>" >&2
+	echo "Usage: update-composer-index.sh <composer-name> <version> [<repo>]" >&2
 	exit 1
 fi
 
@@ -27,7 +34,7 @@ if [ -z "${GH_TOKEN:-}" ]; then
 fi
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
-SLUG="${PACKAGE#${ORG}/}"
+SLUG="${REPO:-${PACKAGE#${ORG}/}}"
 TAG="v${VERSION#v}"
 INDEX_REPO="${ORG}/registry"
 TMPDIR="$(mktemp -d)"
@@ -56,9 +63,11 @@ echo "Fetching release metadata for ${ORG}/${SLUG}@${TAG}..."
 
 RELEASE=$(gh api "repos/${ORG}/${SLUG}/releases/tags/${TAG}" 2>/dev/null || echo "")
 
+# Fail rather than skip: a release missing from the index can't be required,
+# and the release planner waits for it.
 if [ -z "$RELEASE" ]; then
-	echo "Warning: release ${TAG} not found on ${ORG}/${SLUG}; skipping index update." >&2
-	exit 0
+	echo "Error: release ${TAG} not found on ${ORG}/${SLUG}; ${PACKAGE} was not indexed." >&2
+	exit 1
 fi
 
 # Get the tag's commit SHA (handle annotated and lightweight tags)

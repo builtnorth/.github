@@ -64,6 +64,9 @@ jobs:
       - name: Test release planner
         run: node --test .github/scripts/release/release.test.mjs
 
+      - name: Test Composer index script
+        run: bash .github/scripts/tests/update-composer-index.test.sh
+
       - name: Configure repository authentication
         run: gh auth setup-git
 

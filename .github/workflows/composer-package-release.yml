@@ -426,8 +426,16 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
 
+            # The index is keyed by the package's own Composer name (navas/utility),
+            # which can differ from builtnorth/<repo>; composer.json is the source of
+            # truth, and the composer-namespace input is only a fallback.
+            - name: Resolve Composer name
+              id: composer_name
+              run: |
+                  NAME=$(jq -r '.name // empty' composer.json 2>/dev/null || true)
+                  echo "name=${NAME:-${{ env.COMPOSER_NAMESPACE }}}" >> "$GITHUB_OUTPUT"
+
             - name: Update Composer index
-              continue-on-error: true
               env:
                   GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
               run: |
@@ -436,8 +444,9 @@ jobs:
                     exit 0
                   fi
                   bash _builtnorth-github/.github/scripts/update-composer-index.sh \
-                    "${{ env.COMPOSER_NAMESPACE }}" \
-                    "${{ steps.version.outputs.version_number }}"
+                    "${{ steps.composer_name.outputs.name }}" \
+                    "${{ steps.version.outputs.version_number }}" \
+                    "${{ github.event.repository.name }}"
 
             - name: Release summary
               if: success()
@@ -447,7 +456,7 @@ jobs:
                   echo "To use this version in other packages:"
                   echo ""
                   echo "    \"require\": {"
-                  echo "        \"${{ env.COMPOSER_NAMESPACE }}\": \"${{ steps.version.outputs.version_number }}\""
+                  echo "        \"${{ steps.composer_name.outputs.name }}\": \"${{ steps.version.outputs.version_number }}\""
                   echo "    }"
                   echo ""
                   echo "With VCS repository:"

@@ -8,6 +8,7 @@ import {
 	buildPlan,
 	bumpVersion,
 	classifyCommits,
+	composerPackageName,
 	constraintAllows,
 	loadGraph,
 } from "./release.mjs";
@@ -230,4 +231,16 @@ test("orchestrator does not contain Actions run polling commands", () => {
 	];
 	for (const value of banned)
 		assert.equal(script.includes(value), false, value);
+});
+
+test("The Composer index wait uses the package's own Composer name", () => {
+	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "composer-name-"));
+	try {
+		fs.writeFileSync(path.join(dir, "composer.json"), JSON.stringify({ name: "navas/utility" }));
+		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir }), "navas/utility");
+		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir, composerName: "acme/utility" }), "acme/utility");
+		assert.equal(composerPackageName({ slug: "utility", absolutePath: path.join(dir, "missing") }), "builtnorth/utility");
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
 });
