@@ -5,9 +5,17 @@
   "packages": [
     { "slug": "coding-standards", "type": "composer" },
     { "slug": "wp-mock-stand-ins", "type": "composer" },
-    { "slug": "baseline", "type": "composer" },
+    {
+      "slug": "baseline",
+      "type": "composer",
+      "dependencies": [["package-loader", "composer", "^0.1"]]
+    },
     { "slug": "wp-config", "type": "composer" },
-    { "slug": "environment-indicator", "type": "composer" },
+    {
+      "slug": "environment-indicator",
+      "type": "composer",
+      "dependencies": [["package-loader", "composer", "^0.1"]]
+    },
     { "slug": "utility", "type": "composer" },
     {
       "slug": "structured-data",
