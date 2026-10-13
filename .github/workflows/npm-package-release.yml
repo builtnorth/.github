@@ -64,7 +64,7 @@ on:
         type: string
         default: 'test'
     secrets:
-      KITARIS_PLUGIN_GITHUB_TOKEN:
+      ORG_REPO_TOKEN:
         required: false
       NPM_TOKEN:
         required: false
@@ -114,7 +114,7 @@ jobs:
       lint-command: ${{ inputs.lint-command }}
       test-command: ${{ inputs.test-command }}
     secrets:
-      KITARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
+      ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 
   build:
     needs: [preflight, ci]
@@ -190,7 +190,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
 
       - name: Setup workspace and install dependencies
         if: inputs.use-workspace

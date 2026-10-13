@@ -64,7 +64,7 @@ on:
         type: boolean
         default: false
     secrets:
-      KITARIS_PLUGIN_GITHUB_TOKEN:
+      ORG_REPO_TOKEN:
         required: false
 
 env:
@@ -143,16 +143,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -238,16 +238,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -286,16 +286,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -333,16 +333,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -352,7 +352,7 @@ jobs:
 
       - name: Run security check for PHP dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           composer require --dev roave/security-advisories:dev-latest
           composer audit --abandoned=report
@@ -437,16 +437,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
 
       - name: Configure Composer VCS repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction

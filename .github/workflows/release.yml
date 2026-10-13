@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
-      GH_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
       GIT_AUTHOR_NAME: Dan Northern
       GIT_AUTHOR_EMAIL: git@dannorthern.com
       GIT_COMMITTER_NAME: Dan Northern
@@ -49,7 +49,7 @@ jobs:
       - name: Require cross-repository token
         run: |
           if [ -z "$GH_TOKEN" ]; then
-            echo "::error::KITARIS_PLUGIN_GITHUB_TOKEN is required."
+            echo "::error::ORG_REPO_TOKEN is required."
             exit 1
           fi
 
