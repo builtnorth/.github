@@ -24,14 +24,20 @@ stamp_constant() {
 		$version = $argv[3];
 		$contents = file_get_contents($file);
 		$updated = preg_replace($pattern, "\${1}{$version}\${2}", $contents, 1, $count);
+		// A file that reads its version from version.php holds no literal to
+		// stamp; stamping version.php (above) already covers it.
+		if (0 === $count && false !== strpos($contents, "version.php")) {
+			echo "{$file} reads version.php; nothing to stamp\n";
+			exit(0);
+		}
 		if (1 !== $count || false === $updated) {
 			fwrite(STDERR, "Unable to stamp runtime version in {$file}\n");
 			exit(1);
 		}
 		file_put_contents($file, $updated);
+		echo "Stamped {$file} with {$version}\n";
 	' "$file" "$pattern" "$VERSION"
 
-	echo "Stamped ${file} with ${VERSION}"
 	stamped=1
 }
 
