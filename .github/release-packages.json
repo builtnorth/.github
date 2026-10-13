@@ -217,7 +217,7 @@
         ["kitaris", "composer", "^0.1"],
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-blocks", "npm", "^1.0.7"],
+        ["wp-blocks", "npm", "^0.2.0"],
         ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"],
         ["wp-blocks", "build", "*"],
