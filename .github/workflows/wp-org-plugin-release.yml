@@ -1,0 +1,354 @@
+name: Reusable WordPress.org Plugin Release
+
+# Release workflow for free plugins published on WordPress.org. Differs from
+# wp-plugin-release.yml (paid plugins) in what the zip may contain:
+#   - dependencies come from public Packagist only (no private repos, no token)
+#   - the zip is built from .distignore, not a fixed folder list
+#   - the build must pass Plugin Check and hold no hidden or development files
+#   - the readme's Stable tag and changelog are kept in step with the version
+# Publishing to WordPress.org SVN is not part of this workflow.
+
+on:
+    workflow_call:
+        inputs:
+            version:
+                description: "Release version (e.g., 1.2.0)"
+                required: true
+                type: string
+            prerelease:
+                description: "Is this a pre-release?"
+                required: false
+                type: boolean
+                default: false
+            php-versions:
+                description: "PHP versions to test against in the pre-release CI gate"
+                required: false
+                type: string
+                default: '["8.1", "8.2", "8.3", "8.4"]'
+            wordpress-versions:
+                description: "WordPress versions to test against in the pre-release CI gate"
+                required: false
+                type: string
+                default: '["6.7", "latest"]'
+        secrets:
+            ORG_REPO_TOKEN:
+                required: false
+
+concurrency:
+    group: release-${{ github.repository }}
+    cancel-in-progress: false
+
+jobs:
+    preflight:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        outputs:
+            already_released: ${{ steps.release.outputs.already_released }}
+        steps:
+            - name: Check release idempotency
+              id: release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  VERSION: ${{ inputs.version }}
+              run: |
+                  VERSION="${VERSION#v}"
+                  if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                    echo "::error::Version must be X.Y.Z (got '$VERSION')."
+                    exit 1
+                  fi
+                  TAG="v$VERSION"
+                  if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+                    echo "already_released=true" >> "$GITHUB_OUTPUT"
+                    exit 0
+                  fi
+                  echo "already_released=false" >> "$GITHUB_OUTPUT"
+                  if gh api "repos/${{ github.repository }}/git/ref/tags/$TAG" >/dev/null 2>&1; then
+                    echo "::error::Tag $TAG exists without a release. Resolve that partial release before retrying."
+                    exit 1
+                  fi
+
+    ci:
+        needs: preflight
+        if: needs.preflight.outputs.already_released != 'true'
+        uses: builtnorth/.github/.github/workflows/wp-plugin-ci.yml@main
+        permissions:
+            contents: read
+            security-events: write
+        with:
+            php-versions: ${{ inputs.php-versions }}
+            wordpress-versions: ${{ inputs.wordpress-versions }}
+        secrets:
+            ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+
+    build:
+        needs: [preflight, ci]
+        if: needs.preflight.outputs.already_released != 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  submodules: false
+                  fetch-depth: 0
+
+            - name: Get version from input
+              id: version
+              env:
+                  VERSION: ${{ inputs.version }}
+              run: |
+                  VERSION="${VERSION#v}"
+                  PLUGIN_NAME="${GITHUB_REPOSITORY##*/}"
+                  echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+                  echo "VERSION_TAG=v$VERSION" >> "$GITHUB_OUTPUT"
+                  echo "PLUGIN_NAME=$PLUGIN_NAME" >> "$GITHUB_OUTPUT"
+                  for f in "$PLUGIN_NAME.php" readme.txt .distignore; do
+                    if [ ! -f "$f" ]; then
+                      echo "::error::$f is required for a WordPress.org release."
+                      exit 1
+                    fi
+                  done
+
+            - name: Set plugin version and readme Stable tag
+              env:
+                  VERSION: ${{ steps.version.outputs.VERSION }}
+                  PLUGIN_FILE: ${{ steps.version.outputs.PLUGIN_NAME }}.php
+              run: |
+                  sed -i -E "s/^([[:space:]]*\*?[[:space:]]*Version:[[:space:]]*)[^[:space:]]+/\1${VERSION}/" "$PLUGIN_FILE"
+                  sed -i -E "s/^(Stable tag:[[:space:]]*)[^[:space:]]+/\1${VERSION}/" readme.txt
+
+                  grep -qE "^[[:space:]]*\*?[[:space:]]*Version:[[:space:]]*${VERSION//./\\.}[[:space:]]*$" "$PLUGIN_FILE" \
+                    || { echo "::error::No 'Version:' header set to $VERSION in $PLUGIN_FILE."; exit 1; }
+                  grep -qE "^Stable tag:[[:space:]]*${VERSION//./\\.}[[:space:]]*$" readme.txt \
+                    || { echo "::error::No 'Stable tag:' set to $VERSION in readme.txt."; exit 1; }
+
+            - name: Add the readme changelog entry
+              env:
+                  VERSION: ${{ steps.version.outputs.VERSION }}
+                  VERSION_TAG: ${{ steps.version.outputs.VERSION_TAG }}
+              run: |
+                  if ! grep -qE '^== Changelog ==[[:space:]]*$' readme.txt; then
+                    echo "::error::readme.txt has no '== Changelog ==' section."
+                    exit 1
+                  fi
+
+                  # A hand-written entry for this version wins.
+                  if grep -qE "^= ${VERSION//./\\.} =[[:space:]]*$" readme.txt; then
+                    echo "readme.txt already has a $VERSION entry; keeping it."
+                    exit 0
+                  fi
+
+                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF "$VERSION_TAG" | sed -n '1p' || true)
+                  RANGE="HEAD"
+                  [ -n "$PREVIOUS_TAG" ] && RANGE="$PREVIOUS_TAG..HEAD"
+
+                  # User-facing commit types only. Commit subjects are untrusted
+                  # text: they are only ever written to files, never evaluated.
+                  ENTRY="$RUNNER_TEMP/changelog-entry.txt"
+                  echo "= $VERSION =" > "$ENTRY"
+                  git log --no-merges --format=%s "$RANGE" \
+                    | grep -E '^(feat|fix|perf)(\([^)]*\))?!?: ' \
+                    | sed -E 's/^[a-z]+(\([^)]*\))?!?: //' \
+                    | awk '{ print "* " toupper(substr($0, 1, 1)) substr($0, 2) }' >> "$ENTRY" || true
+                  if [ "$(wc -l < "$ENTRY")" -eq 1 ]; then
+                    echo "* Maintenance release." >> "$ENTRY"
+                  fi
+
+                  awk -v entry="$ENTRY" '
+                    { print }
+                    /^== Changelog ==[[:space:]]*$/ && !done {
+                      print ""
+                      while ((getline line < entry) > 0) print line
+                      done = 1
+                    }
+                  ' readme.txt > "$RUNNER_TEMP/readme.txt"
+                  mv "$RUNNER_TEMP/readme.txt" readme.txt
+
+                  echo "Added changelog entry:"
+                  cat "$ENTRY"
+
+            - name: Setup PHP
+              uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+              with:
+                  php-version: "8.1"
+                  tools: composer:v2
+
+            - name: Build the release folder
+              id: build
+              env:
+                  PLUGIN_NAME: ${{ steps.version.outputs.PLUGIN_NAME }}
+              run: |
+                  # Public Packagist only: a WordPress.org zip must install for anyone.
+                  if jq -e '(.repositories // []) | length > 0' composer.json >/dev/null 2>&1; then
+                    echo "::error::composer.json declares custom repositories; WordPress.org builds use public Packagist only."
+                    exit 1
+                  fi
+
+                  BUILD_ROOT="$RUNNER_TEMP/build"
+                  BUILD_DIR="$BUILD_ROOT/$PLUGIN_NAME"
+                  mkdir -p "$BUILD_DIR"
+                  rsync -a --exclude-from=.distignore --exclude=vendor --exclude=node_modules ./ "$BUILD_DIR/"
+
+                  if [ -f "$BUILD_DIR/composer.json" ]; then
+                    (cd "$BUILD_DIR" && composer update --no-dev --prefer-dist --optimize-autoloader --no-scripts --no-interaction --no-progress)
+                    echo "=== Bundled packages ==="
+                    (cd "$BUILD_DIR" && composer show --no-dev)
+                    rm -f "$BUILD_DIR/composer.lock"
+                  fi
+
+                  echo "BUILD_ROOT=$BUILD_ROOT" >> "$GITHUB_OUTPUT"
+                  echo "BUILD_DIR=$BUILD_DIR" >> "$GITHUB_OUTPUT"
+
+            - name: Reject development files in the build
+              env:
+                  BUILD_DIR: ${{ steps.build.outputs.BUILD_DIR }}
+              run: |
+                  FOUND=$(cd "$BUILD_DIR" && find . -mindepth 1 \( \
+                    -name '.*' -o -name tests -o -name 'phpunit.xml*' -o -name 'phpcs.xml*' \
+                    -o -name 'phpstan.neon*' -o -name node_modules -o -name '*.map' \
+                  \) -print | LC_ALL=C sort)
+                  if [ -n "$FOUND" ]; then
+                    echo "::error::The build holds development files. Exclude them in .distignore, or with export-ignore in the dependency's .gitattributes:"
+                    echo "$FOUND"
+                    exit 1
+                  fi
+
+            - name: Plugin Check
+              uses: wordpress/plugin-check-action@10857da14b6c2246d15402b3e69f777edcf8c12e # v1.1.9
+              with:
+                  build-dir: ${{ steps.build.outputs.BUILD_DIR }}
+                  slug: ${{ steps.version.outputs.PLUGIN_NAME }}
+
+            - name: Create plugin zip
+              env:
+                  PLUGIN_NAME: ${{ steps.version.outputs.PLUGIN_NAME }}
+                  BUILD_ROOT: ${{ steps.build.outputs.BUILD_ROOT }}
+              run: |
+                  (cd "$BUILD_ROOT" && zip -rqX "$GITHUB_WORKSPACE/$PLUGIN_NAME.zip" "$PLUGIN_NAME")
+                  echo "Plugin zip created:"
+                  unzip -l "$PLUGIN_NAME.zip" | tail -1
+
+            - name: Generate release notes
+              id: release_notes
+              run: |
+                  CURRENT="${{ steps.version.outputs.VERSION_TAG }}"
+                  PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -vxF "$CURRENT" | sed -n '1p' || true)
+
+                  if [ -z "$PREVIOUS_TAG" ]; then
+                      echo "No previous tag found, this is the first release"
+                      PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+                  fi
+
+                  echo "Comparing changes from $PREVIOUS_TAG to HEAD ($CURRENT)"
+
+                  COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
+
+                  # Group commits by type. Matches plain (fix:), scoped (fix(auth):),
+                  # and breaking (fix!:, fix(auth)!:) Conventional Commits forms.
+                  SCOPE='(\([^)]*\))?!?'
+                  FEATURES=$(echo "$COMMITS" | grep -iE "^- (feat|feature)${SCOPE}:" || true)
+                  FIXES=$(echo "$COMMITS" | grep -iE "^- (fix|bugfix)${SCOPE}:" || true)
+                  PERF=$(echo "$COMMITS" | grep -iE "^- perf${SCOPE}:" || true)
+                  DOCS=$(echo "$COMMITS" | grep -iE "^- (docs|documentation)${SCOPE}:" || true)
+                  REFACTOR=$(echo "$COMMITS" | grep -iE "^- (refactor|refactoring)${SCOPE}:" || true)
+                  CHORE=$(echo "$COMMITS" | grep -iE "^- (chore|build|ci|test|tests)${SCOPE}:" || true)
+                  OTHER=$(echo "$COMMITS" | grep -ivE "^- (feat|feature|fix|bugfix|perf|docs|documentation|refactor|refactoring|test|tests|chore|build|ci)${SCOPE}:" || true)
+
+                  CHANGELOG="## What's Changed in ${{ steps.version.outputs.PLUGIN_NAME }} ${CURRENT}"$'\n\n'
+                  [ -n "$FEATURES" ] && CHANGELOG="${CHANGELOG}### Features"$'\n'"${FEATURES}"$'\n\n'
+                  [ -n "$FIXES" ] && CHANGELOG="${CHANGELOG}### Bug Fixes"$'\n'"${FIXES}"$'\n\n'
+                  [ -n "$PERF" ] && CHANGELOG="${CHANGELOG}### Performance Improvements"$'\n'"${PERF}"$'\n\n'
+                  [ -n "$DOCS" ] && CHANGELOG="${CHANGELOG}### Documentation"$'\n'"${DOCS}"$'\n\n'
+                  [ -n "$REFACTOR" ] && CHANGELOG="${CHANGELOG}### Refactoring"$'\n'"${REFACTOR}"$'\n\n'
+                  [ -n "$CHORE" ] && CHANGELOG="${CHANGELOG}### Maintenance"$'\n'"${CHORE}"$'\n\n'
+                  [ -n "$OTHER" ] && CHANGELOG="${CHANGELOG}### Other Changes"$'\n'"${OTHER}"$'\n\n'
+                  [ -z "$COMMITS" ] && CHANGELOG="${CHANGELOG}No changes recorded since ${PREVIOUS_TAG}."$'\n\n'
+
+                  CHANGELOG="${CHANGELOG}**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREVIOUS_TAG}...${CURRENT}"
+
+                  echo "CHANGELOG<<EOF" >> "$GITHUB_OUTPUT"
+                  echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+                  echo "EOF" >> "$GITHUB_OUTPUT"
+
+            # Only after every check has passed, so a failed release leaves no commit behind.
+            - name: Commit version and changelog
+              env:
+                  VERSION_TAG: ${{ steps.version.outputs.VERSION_TAG }}
+                  PLUGIN_FILE: ${{ steps.version.outputs.PLUGIN_NAME }}.php
+              run: |
+                  git config --local user.email "action@github.com"
+                  git config --local user.name "GitHub Action"
+                  git add -- "$PLUGIN_FILE" readme.txt
+                  if ! git diff --cached --quiet; then
+                    git commit -m "chore: prepare ${VERSION_TAG} release"
+                    git push origin HEAD:${{ github.ref_name }}
+                  fi
+
+            - name: Create exact-source tag
+              env:
+                  TAG: ${{ steps.version.outputs.VERSION_TAG }}
+                  PLUGIN_NAME: ${{ steps.version.outputs.PLUGIN_NAME }}
+              run: |
+                  git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+                  if git rev-parse "$TAG" >/dev/null 2>&1; then
+                    if [ "$(git rev-list -n1 "$TAG")" != "$(git rev-parse HEAD)" ]; then
+                      echo "::error::Tag $TAG already exists but does not point to finalized HEAD."
+                      exit 1
+                    fi
+                    echo "Tag $TAG already points to finalized HEAD."
+                  else
+                    git tag -a "$TAG" -m "Release $TAG"
+                    git push origin "$TAG"
+                  fi
+
+                  {
+                    printf '# source-commit %s\n' "$(git rev-parse HEAD)"
+                    unzip -Z1 "$PLUGIN_NAME.zip" | LC_ALL=C sort
+                  } > "$PLUGIN_NAME.manifest.txt"
+                  sha256sum "$PLUGIN_NAME.zip" > "$PLUGIN_NAME.zip.sha256"
+
+            - name: Create Release with GitHub CLI
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
+                  # Passed as env, never pasted into the script: commit messages are
+                  # untrusted text, and a backtick or $(...) in one would run as a command.
+                  CHANGELOG: ${{ steps.release_notes.outputs.CHANGELOG }}
+                  TAG: ${{ steps.version.outputs.VERSION_TAG }}
+                  PLUGIN_NAME: ${{ steps.version.outputs.PLUGIN_NAME }}
+              run: |
+                  if gh release view "$TAG" >/dev/null 2>&1; then
+                    echo "Release $TAG already exists; nothing to publish."
+                    exit 0
+                  fi
+
+                  PRERELEASE_FLAG=""
+                  if [ "${{ inputs.prerelease }}" = "true" ]; then
+                      PRERELEASE_FLAG="--prerelease"
+                  fi
+
+                  printf '%s\n' "$CHANGELOG" > "$RUNNER_TEMP/release_notes.md"
+
+                  gh release create "$TAG" \
+                    --title "$TAG" \
+                    --notes-file "$RUNNER_TEMP/release_notes.md" \
+                    $PRERELEASE_FLAG \
+                    "$PLUGIN_NAME.zip" \
+                    "$PLUGIN_NAME.manifest.txt" \
+                    "$PLUGIN_NAME.zip.sha256"
+
+            # The release planner (release.mjs) waits for every released plugin
+            # to appear in the private Composer index.
+            - name: Refresh Composer plugin index
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "ORG_REPO_TOKEN not set; skip composer index"
+                    exit 0
+                  fi
+                  gh api --method POST repos/builtnorth/registry/dispatches --input - <<EOF
+                  {"event_type":"plugin-released","client_payload":{"plugin":"${{ steps.version.outputs.PLUGIN_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
+                  EOF
