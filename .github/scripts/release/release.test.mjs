@@ -118,9 +118,9 @@ test("catalog provides the release graph without Basecamp paths", () => {
 		dispatcher.dependencies.map((edge) => edge.node.slug).sort(),
 		["instant-actions", "package-loader"],
 	);
-	const polaris = graph.nodes.find((node) => node.slug === "polaris");
+	const kitaris = graph.nodes.find((node) => node.slug === "kitaris");
 	assert.deepEqual(
-		polaris.dependencies
+		kitaris.dependencies
 			.filter((edge) => edge.kind === "composer")
 			.map((edge) => edge.node.slug)
 			.sort(),
@@ -132,11 +132,11 @@ test("catalog provides the release graph without Basecamp paths", () => {
 			"job-dispatcher",
 			"novalis-config",
 			"package-loader",
-			"polaris-controls",
-			"polaris-integrations-lib",
-			"polaris-license",
-			"polaris-module-ai",
-			"polaris-whitelabel",
+			"kitaris-controls",
+			"kitaris-integrations-lib",
+			"kitaris-license",
+			"kitaris-module-ai",
+			"kitaris-whitelabel",
 			"post-types",
 			"rest-access",
 			"secret-cipher",
@@ -152,17 +152,17 @@ test("catalog provides the release graph without Basecamp paths", () => {
 
 test("dependents are never added implicitly", () => {
 	const utility = packageNode("wp-utility");
-	const polaris = packageNode("polaris");
-	const plugin = packageNode("polaris-seo", { deployable: true });
-	connect(polaris, utility, "^2.0");
-	connect(plugin, polaris, "^2.0");
+	const kitaris = packageNode("kitaris");
+	const plugin = packageNode("kitaris-seo", { deployable: true });
+	connect(kitaris, utility, "^2.0");
+	connect(plugin, kitaris, "^2.0");
 
 	const plan = buildPlan({
-		nodes: [plugin, polaris, utility],
+		nodes: [plugin, kitaris, utility],
 		states: {
 			"wp-utility": state("2.4.0", { changed: true }),
-			polaris: state("2.4.0"),
-			"polaris-seo": state("1.4.9"),
+			kitaris: state("2.4.0"),
+			"kitaris-seo": state("1.4.9"),
 		},
 		targetSlug: "wp-utility",
 	});
@@ -173,45 +173,45 @@ test("dependents are never added implicitly", () => {
 	);
 });
 
-test("a Polaris major release requires explicit deployable migrations", () => {
-	const polaris = packageNode("polaris");
-	const plugin = packageNode("polaris-seo", { deployable: true });
-	connect(plugin, polaris, "^2.3");
+test("a Kitaris major release requires explicit deployable migrations", () => {
+	const kitaris = packageNode("kitaris");
+	const plugin = packageNode("kitaris-seo", { deployable: true });
+	connect(plugin, kitaris, "^2.3");
 
 	const plan = buildPlan({
-		nodes: [polaris, plugin],
+		nodes: [kitaris, plugin],
 		states: {
-			polaris: state("2.4.0", { changed: true, bump: "major" }),
-			"polaris-seo": state("1.4.9"),
+			kitaris: state("2.4.0", { changed: true, bump: "major" }),
+			"kitaris-seo": state("1.4.9"),
 		},
-		targetSlug: "polaris",
+		targetSlug: "kitaris",
 	});
 
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["polaris"],
+		["kitaris"],
 	);
 	assert.match(plan.blockers[0], /excludes planned 3.0.0/);
 });
 
 test("build-time consumers require committed rebuilt assets", () => {
 	const charts = packageNode("charts");
-	const plugin = packageNode("polaris-seo", { deployable: true });
+	const plugin = packageNode("kitaris-seo", { deployable: true });
 	connect(plugin, charts, "*", "build");
 
 	const plan = buildPlan({
 		nodes: [charts, plugin],
 		states: {
 			charts: state("1.3.0", { changed: true, buildChanged: true }),
-			"polaris-seo": state("1.4.9"),
+			"kitaris-seo": state("1.4.9"),
 		},
-		targetSlugs: ["charts", "polaris-seo"],
+		targetSlugs: ["charts", "kitaris-seo"],
 		force: true,
 	});
 
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["charts", "polaris-seo"],
+		["charts", "kitaris-seo"],
 	);
 	assert.match(plan.blockers[0], /rebuild and commit/);
 });

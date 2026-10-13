@@ -59,7 +59,7 @@ on:
         type: boolean
         default: true
     secrets:
-      POLARIS_PLUGIN_GITHUB_TOKEN:
+      KITARIS_PLUGIN_GITHUB_TOKEN:
         required: false
 
 env:
@@ -79,7 +79,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -87,7 +87,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -128,7 +128,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -136,7 +136,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -177,7 +177,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -185,7 +185,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -226,7 +226,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -234,7 +234,7 @@ jobs:
         with:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}
 
       - name: Setup workspace
         if: inputs.use-workspace

@@ -13,7 +13,7 @@ on:
                 type: boolean
                 default: false
         secrets:
-            POLARIS_PLUGIN_GITHUB_TOKEN:
+            KITARIS_PLUGIN_GITHUB_TOKEN:
                 required: false
 
 concurrency:
@@ -133,7 +133,7 @@ jobs:
 
             - name: Configure Composer for private repos
               env:
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   # Auth is configured via COMPOSER_AUTH env variable
                   echo "Composer auth configured via environment"
@@ -147,13 +147,13 @@ jobs:
 
             - name: Configure git for Composer VCS clones
               run: |
-                  TOKEN="${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
+                  TOKEN="${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || github.token }}"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
 
             - name: Update composer.json for production
               env:
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   # Derive VCS mirrors from this theme's composer.json (no kitchen-sink).
                   bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh from-composer
@@ -169,7 +169,7 @@ jobs:
 
             - name: Finalize production dependency lock
               env:
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   composer config optimize-autoloader true
                   composer config classmap-authoritative true
@@ -193,7 +193,7 @@ jobs:
 
             - name: Install production dependencies from lock
               env:
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}"}}'
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}"}}'
               run: |
                   rm -rf vendor
                   composer install --no-dev --optimize-autoloader --classmap-authoritative --no-scripts --prefer-dist --no-interaction
@@ -361,7 +361,7 @@ jobs:
                   } > "${{ steps.version.outputs.THEME_NAME }}.manifest.txt"
                   sha256sum "${{ steps.version.outputs.THEME_NAME }}.zip" > "${{ steps.version.outputs.THEME_NAME }}.zip.sha256"
 
-            # Use github.token here so release creation is not tied to POLARIS_PLUGIN_GITHUB_TOKEN
+            # Use github.token here so release creation is not tied to KITARIS_PLUGIN_GITHUB_TOKEN
             # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
             # Contents: write on this repo causes gh release create to return HTTP 403.
             - name: Create Release with GitHub CLI

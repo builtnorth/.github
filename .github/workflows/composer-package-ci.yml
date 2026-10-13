@@ -44,7 +44,7 @@ on:
         type: string
         default: '8.3'
     secrets:
-      POLARIS_PLUGIN_GITHUB_TOKEN:
+      KITARIS_PLUGIN_GITHUB_TOKEN:
         required: false
       WORKFLOW_TOKEN:
         required: false
@@ -94,16 +94,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -154,16 +154,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction
@@ -205,16 +205,16 @@ jobs:
             .github/scripts
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
-          token: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          token: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
 
       - name: Configure private repositories
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
         run: |
           if [ -f composer.lock ]; then
             composer install --prefer-dist --no-progress --no-interaction

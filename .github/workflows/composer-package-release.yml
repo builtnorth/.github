@@ -56,7 +56,7 @@ on:
         secrets:
             WORKFLOW_TOKEN:
                 required: false
-            POLARIS_PLUGIN_GITHUB_TOKEN:
+            KITARIS_PLUGIN_GITHUB_TOKEN:
                 required: false
 
 env:
@@ -103,7 +103,7 @@ jobs:
             run-phpcs: ${{ inputs.run-phpcs }}
             run-phpcompat: ${{ inputs.run-phpcompat }}
         secrets:
-            POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+            KITARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
             WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
 
     release:
@@ -198,20 +198,20 @@ jobs:
             - name: Configure git for Composer VCS clones
               if: hashFiles('composer.json') != ''
               env:
-                  POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  KITARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
                   WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
               run: |
-                  TOKEN="${POLARIS_PLUGIN_GITHUB_TOKEN:-${WORKFLOW_TOKEN:-}}"
+                  TOKEN="${KITARIS_PLUGIN_GITHUB_TOKEN:-${WORKFLOW_TOKEN:-}}"
                   if [ -z "$TOKEN" ]; then
-                    echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty — refusing github.token fallback for private VCS."
+                    echo "::error::KITARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty — refusing github.token fallback for private VCS."
                     echo "::error::Grant the org secret to this private repository (org Settings → Secrets → Repository access)."
                     exit 1
                   fi
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
                   git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "git@github.com:"
                   echo "GITHUB_TOKEN_CONFIGURED=1" >> "$GITHUB_ENV"
-                  if [ -n "${POLARIS_PLUGIN_GITHUB_TOKEN}" ]; then
-                    echo "Private VCS token source: POLARIS_PLUGIN_GITHUB_TOKEN"
+                  if [ -n "${KITARIS_PLUGIN_GITHUB_TOKEN}" ]; then
+                    echo "Private VCS token source: KITARIS_PLUGIN_GITHUB_TOKEN"
                   else
                     echo "Private VCS token source: WORKFLOW_TOKEN"
                   fi
@@ -219,13 +219,13 @@ jobs:
             - name: Finalize and verify Composer dependencies
               if: hashFiles('composer.json') != '' && github.event_name != 'push'
               env:
-                  POLARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  KITARIS_PLUGIN_GITHUB_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
                   WORKFLOW_TOKEN: ${{ secrets.WORKFLOW_TOKEN }}
-                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+                  GH_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
               run: |
-                  if [ -z "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && [ -z "${WORKFLOW_TOKEN}" ]; then
-                    echo "::error::POLARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty in this workflow."
+                  if [ -z "${KITARIS_PLUGIN_GITHUB_TOKEN}" ] && [ -z "${WORKFLOW_TOKEN}" ]; then
+                    echo "::error::KITARIS_PLUGIN_GITHUB_TOKEN (and WORKFLOW_TOKEN) are empty in this workflow."
                     echo "::error::Create Release would fall back to github.token, which cannot read other private builtnorth/* repos."
                     echo "::error::Grant the org secret to this private repository (org Settings → Secrets → Repository access)."
                     exit 1
@@ -234,7 +234,7 @@ jobs:
                     echo "::error::GH_TOKEN is empty — cannot resolve private builtnorth dependencies."
                     exit 1
                   fi
-                  echo "Private Composer token source: $( [ -n "${POLARIS_PLUGIN_GITHUB_TOKEN}" ] && echo POLARIS_PLUGIN_GITHUB_TOKEN || echo WORKFLOW_TOKEN )"
+                  echo "Private Composer token source: $( [ -n "${KITARIS_PLUGIN_GITHUB_TOKEN}" ] && echo KITARIS_PLUGIN_GITHUB_TOKEN || echo WORKFLOW_TOKEN )"
 
                   DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
                   bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
@@ -275,7 +275,7 @@ jobs:
             - name: Install finalized production dependencies
               if: hashFiles('composer.lock') != ''
               env:
-                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
               run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 
             - name: Create and push tag
@@ -437,10 +437,10 @@ jobs:
 
             - name: Update Composer index
               env:
-                  GH_TOKEN: ${{ secrets.POLARIS_PLUGIN_GITHUB_TOKEN }}
+                  GH_TOKEN: ${{ secrets.KITARIS_PLUGIN_GITHUB_TOKEN }}
               run: |
                   if [ -z "$GH_TOKEN" ]; then
-                    echo "POLARIS_PLUGIN_GITHUB_TOKEN not set; skipping Composer index update."
+                    echo "KITARIS_PLUGIN_GITHUB_TOKEN not set; skipping Composer index update."
                     exit 0
                   fi
                   bash _builtnorth-github/.github/scripts/update-composer-index.sh \

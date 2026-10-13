@@ -17,7 +17,7 @@ PHP
 cat >"${FIXTURE_DIR}/inc/classes/Base/DefineConstants.php" <<'PHP'
 <?php
 $constants = [
-	'POLARIS_VERSION' => '9.9.9',
+	'KITARIS_VERSION' => '9.9.9',
 ];
 PHP
 
@@ -27,6 +27,6 @@ PHP
 )
 
 grep -q "public const VERSION = '2.4.0';" "${FIXTURE_DIR}/inc/Core/Constants.php"
-grep -q "'POLARIS_VERSION' => '2.4.0'," "${FIXTURE_DIR}/inc/classes/Base/DefineConstants.php"
+grep -q "'KITARIS_VERSION' => '2.4.0'," "${FIXTURE_DIR}/inc/classes/Base/DefineConstants.php"
 
 echo "PASS: runtime version metadata follows the release version."

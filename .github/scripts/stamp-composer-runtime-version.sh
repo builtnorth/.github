@@ -49,7 +49,7 @@ stamp_constant \
 
 stamp_constant \
 	"inc/classes/Base/DefineConstants.php" \
-	"/('POLARIS_VERSION'\s*=>\s*')[^']+(',)/"
+	"/('KITARIS_VERSION'\s*=>\s*')[^']+(',)/"
 
 if [ "$stamped" -eq 0 ]; then
 	echo "No supported runtime version metadata found; release tag remains authoritative."
