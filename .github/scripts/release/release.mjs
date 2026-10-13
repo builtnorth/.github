@@ -650,22 +650,33 @@ async function executePlan(plan) {
 		]);
 		git(node.absolutePath, ["push", "origin", node.releaseBranch]);
 
-		try {
-			run("gh", [
-				"workflow",
-				"run",
-				"release.yml",
-				"--repo",
-				node.repo,
-				"--ref",
-				node.releaseBranch,
-				"-f",
-				`version=${version}`,
-				"-f",
-				"prerelease=false",
-			]);
-		} catch (error) {
-			assertNotRateLimited(error);
+		// A release.yml that only just reached the default branch (the push above)
+		// takes GitHub a few seconds to register; until then dispatch returns 404.
+		for (let attempt = 1; ; attempt++) {
+			try {
+				run("gh", [
+					"workflow",
+					"run",
+					"release.yml",
+					"--repo",
+					node.repo,
+					"--ref",
+					node.releaseBranch,
+					"-f",
+					`version=${version}`,
+					"-f",
+					"prerelease=false",
+				]);
+				break;
+			} catch (error) {
+				const detail = `${error.stderr || ""}${error.message || ""}`;
+				if (attempt < 6 && /HTTP 404: workflow .* not found/i.test(detail)) {
+					console.log(`  release.yml not registered yet on ${node.releaseBranch}; retrying in 10s...`);
+					await sleep(10_000);
+					continue;
+				}
+				assertNotRateLimited(error);
+			}
 		}
 
 		const dispatchedAt = Date.now();
