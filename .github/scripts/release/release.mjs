@@ -614,8 +614,9 @@ async function executePlan(plan) {
 		const tag = `v${version}`;
 		const existing = remoteTagCommit(node, tag);
 		if (existing) {
-			// A tag without its GitHub release is a run that failed after tagging;
-			// dispatching again resumes it (the workflow reuses a tag at HEAD).
+			// A tag without its GitHub release is a run that failed after tagging.
+			// The release workflow's preflight refuses to retry over it, so stop
+			// with the fix rather than skip it silently or dispatch a doomed run.
 			let released = false;
 			try {
 				run("gh", ["release", "view", tag, "--repo", node.repo, "--json", "tagName"]);
@@ -627,7 +628,11 @@ async function executePlan(plan) {
 				console.log(`Skipping ${node.slug}: ${tag} is already released.`);
 				continue;
 			}
-			console.log(`Resuming ${node.slug}: ${tag} exists but has no release.`);
+			throw new Error(
+				`${node.slug}: ${tag} exists but has no GitHub release (a run failed after tagging). ` +
+				`If nothing was published, delete the tag and re-run: ` +
+				`gh api -X DELETE repos/${node.repo}/git/refs/tags/${tag}`,
+			);
 		}
 
 		git(node.absolutePath, [
