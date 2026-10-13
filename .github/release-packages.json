@@ -304,6 +304,11 @@
       ]
     },
     {
+      "slug": "kitaris-environment-indicator",
+      "type": "plugin",
+      "dependencies": [["environment-indicator", "composer", "^0.1"]]
+    },
+    {
       "slug": "compass",
       "type": "theme",
       "dependencies": [["kitaris", "composer", "^0.1"]]
