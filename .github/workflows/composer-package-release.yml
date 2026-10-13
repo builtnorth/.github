@@ -426,7 +426,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
 
-            # The index is keyed by the package's own Composer name (navas/utility),
+            # The index is keyed by the package's own Composer name (siratik/utility),
             # which can differ from builtnorth/<repo>; composer.json is the source of
             # truth, and the composer-namespace input is only a fallback.
             - name: Resolve Composer name

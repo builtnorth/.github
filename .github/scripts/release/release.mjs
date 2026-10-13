@@ -565,7 +565,7 @@ function composerIndexHasVersion(indexPath, packageName, version) {
 
 /**
  * The name a package is indexed under: its own composer.json "name" (a vendor
- * other than builtnorth, such as navas/utility, is common), a catalog
+ * other than builtnorth, such as siratik/utility, is common), a catalog
  * `composerName` override, else builtnorth/<slug>.
  */
 export function composerPackageName(node) {

@@ -3,11 +3,11 @@
 #
 # Usage:
 #   update-composer-index.sh <composer-name> <version> [<repo>]
-#   e.g. update-composer-index.sh navas/utility 2.0.1 utility
+#   e.g. update-composer-index.sh siratik/utility 2.0.1 utility
 #
 # The index entry is keyed by the Composer name (the package's composer.json
 # "name"); release metadata is read from the GitHub repo <org>/<repo>. The two
-# differ for packages whose vendor isn't the org (navas/utility lives in
+# differ for packages whose vendor isn't the org (siratik/utility lives in
 # builtnorth/utility), so pass the repo. Without it, the repo is the Composer
 # name minus "<org>/".
 #

@@ -236,8 +236,8 @@ test("orchestrator does not contain Actions run polling commands", () => {
 test("The Composer index wait uses the package's own Composer name", () => {
 	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "composer-name-"));
 	try {
-		fs.writeFileSync(path.join(dir, "composer.json"), JSON.stringify({ name: "navas/utility" }));
-		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir }), "navas/utility");
+		fs.writeFileSync(path.join(dir, "composer.json"), JSON.stringify({ name: "siratik/utility" }));
+		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir }), "siratik/utility");
 		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir, composerName: "acme/utility" }), "acme/utility");
 		assert.equal(composerPackageName({ slug: "utility", absolutePath: path.join(dir, "missing") }), "builtnorth/utility");
 	} finally {
