@@ -355,7 +355,9 @@ export function readRepositoryState(node) {
 		latestTag,
 		latestVersion,
 		bump,
-		nextVersion: bumpVersion(latestVersion, bump),
+		// A package's first release is 0.1.0, whatever its commits say: bumping
+		// 0.0.0 would give 0.0.1, which `^0.1` constraints on it exclude.
+		nextVersion: latestTag ? bumpVersion(latestVersion, bump) : "0.1.0",
 		buildChanged: changedFiles.some(
 			(file) =>
 				file === "package.json" ||

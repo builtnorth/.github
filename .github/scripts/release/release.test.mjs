@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -11,6 +12,7 @@ import {
 	composerPackageName,
 	constraintAllows,
 	loadGraph,
+	readRepositoryState,
 } from "./release.mjs";
 
 function packageNode(slug, { deployable = false } = {}) {
@@ -240,6 +242,23 @@ test("The Composer index wait uses the package's own Composer name", () => {
 		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir }), "siratik/utility");
 		assert.equal(composerPackageName({ slug: "utility", absolutePath: dir, composerName: "acme/utility" }), "acme/utility");
 		assert.equal(composerPackageName({ slug: "utility", absolutePath: path.join(dir, "missing") }), "builtnorth/utility");
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test("a package's first release is 0.1.0, then it bumps from its tag", () => {
+	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "first-release-"));
+	const git = (...args) => execFileSync("git", ["-C", dir, ...args], { stdio: "pipe" });
+	try {
+		git("init", "-q", "-b", "dev");
+		git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "fix: first");
+		const node = { absolutePath: dir, developmentBranch: "dev" };
+		assert.equal(readRepositoryState(node).nextVersion, "0.1.0");
+
+		git("tag", "v0.1.0");
+		git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "fix: second");
+		assert.equal(readRepositoryState(node).nextVersion, "0.1.1");
 	} finally {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
