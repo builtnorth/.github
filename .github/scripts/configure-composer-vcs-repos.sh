@@ -8,7 +8,11 @@ set -euo pipefail
 
 ORG="${BUILTNORTH_ORG:-builtnorth}"
 PROFILE="${1:-from-composer}"
-INDEX_URL="${BUILTNORTH_COMPOSER_INDEX_URL:-https://raw.githubusercontent.com/builtnorth/registry/main}"
+# Read the index at its latest commit, not `main`: raw.githubusercontent.com
+# caches branch URLs for minutes, so a package released moments earlier in the
+# same release run would be invisible to this one. A commit URL is never stale.
+INDEX_SHA="$(git ls-remote "https://github.com/${ORG}/registry.git" refs/heads/main 2>/dev/null | cut -f1)"
+INDEX_URL="${BUILTNORTH_COMPOSER_INDEX_URL:-https://raw.githubusercontent.com/${ORG}/registry/${INDEX_SHA:-main}}"
 
 register_index() {
 	local auth token
