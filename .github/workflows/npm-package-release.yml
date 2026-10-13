@@ -368,6 +368,9 @@ jobs:
       - name: Create Release with GitHub CLI
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # Passed as env, never pasted into the script: commit messages are
+          # untrusted text, and a backtick or $(...) in one would run as a command.
+          WHATS_CHANGED: ${{ steps.changelog.outputs.WHATS_CHANGED }}
         run: |
           # Determine archive location
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
@@ -397,7 +400,6 @@ jobs:
           VERSION="${{ steps.version.outputs.VERSION }}"
           VERSION_TAG="${{ steps.version.outputs.VERSION_TAG }}"
           PREVIOUS_TAG="${{ steps.changelog.outputs.PREVIOUS_TAG }}"
-          WHATS_CHANGED="${{ steps.changelog.outputs.WHATS_CHANGED }}"
           REPO="${{ github.repository }}"
 
           {

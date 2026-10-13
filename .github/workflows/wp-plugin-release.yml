@@ -383,6 +383,9 @@ jobs:
             - name: Create Release with GitHub CLI
               env:
                   GITHUB_TOKEN: ${{ github.token }}
+                  # Passed as env, never pasted into the script: commit messages are
+                  # untrusted text, and a backtick or $(...) in one would run as a command.
+                  CHANGELOG: ${{ steps.release_notes.outputs.CHANGELOG }}
               run: |
                   if gh release view "${{ steps.version.outputs.VERSION_TAG }}" >/dev/null 2>&1; then
                     echo "Release ${{ steps.version.outputs.VERSION_TAG }} already exists; nothing to publish."
@@ -394,7 +397,7 @@ jobs:
                       PRERELEASE_FLAG="--prerelease"
                   fi
 
-                  echo "${{ steps.release_notes.outputs.CHANGELOG }}" > release_notes.md
+                  printf '%s\n' "$CHANGELOG" > release_notes.md
 
                   gh release create "${{ steps.version.outputs.VERSION_TAG }}" \
                     --title "${{ steps.version.outputs.VERSION_TAG }}" \
