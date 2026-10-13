@@ -614,8 +614,20 @@ async function executePlan(plan) {
 		const tag = `v${version}`;
 		const existing = remoteTagCommit(node, tag);
 		if (existing) {
-			console.log(`Skipping ${node.slug}: ${tag} already exists.`);
-			continue;
+			// A tag without its GitHub release is a run that failed after tagging;
+			// dispatching again resumes it (the workflow reuses a tag at HEAD).
+			let released = false;
+			try {
+				run("gh", ["release", "view", tag, "--repo", node.repo, "--json", "tagName"]);
+				released = true;
+			} catch {
+				// No release for this tag.
+			}
+			if (released) {
+				console.log(`Skipping ${node.slug}: ${tag} is already released.`);
+				continue;
+			}
+			console.log(`Resuming ${node.slug}: ${tag} exists but has no release.`);
 		}
 
 		git(node.absolutePath, [
