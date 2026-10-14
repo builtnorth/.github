@@ -288,8 +288,12 @@ jobs:
 
       - name: Run PHPCS
         run: |
-          # Run PHPCS (suppress cs2pr error on empty output)
-          vendor/bin/phpcs --report=checkstyle | cs2pr || true
+          # Full report in the log, checkstyle for PR annotations; the job
+          # fails on phpcs's own exit status (errors only, warnings pass).
+          status=0
+          vendor/bin/phpcs -q --report-full --report-checkstyle=phpcs-checkstyle.xml || status=$?
+          cs2pr --graceful-warnings phpcs-checkstyle.xml || true
+          exit "$status"
 
   php-compatibility:
     if: inputs.run-php-compatibility
