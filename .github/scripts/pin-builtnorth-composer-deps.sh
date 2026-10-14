@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare and verify builtnorth/* Composer dependencies without changing
+# Prepare and verify first-party (builtnorth/*, kitaris/*, siratik/*) Composer dependencies without changing
 # committed version constraints.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ if [ ! -f composer.json ]; then
 	exit 0
 fi
 
-DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
+DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep -E '^(builtnorth|kitaris|siratik)/' || true)
 
 case "$MODE" in
 	prepare|pin)
@@ -36,7 +36,7 @@ case "$MODE" in
 		jq -r '
 			.require // {}
 			| to_entries[]
-			| select(.key | startswith("builtnorth/"))
+			| select(.key | test("^(builtnorth|kitaris|siratik)/"))
 			| "  \(.key): \(.value)"
 		' composer.json
 		echo "Composer will resolve the newest released versions allowed by these constraints."
@@ -58,7 +58,7 @@ case "$MODE" in
 
 		LOCKED_PACKAGES=$(jq -r '
 			.packages[]?
-			| select(.name | startswith("builtnorth/"))
+			| select(.name | test("^(builtnorth|kitaris|siratik)/"))
 			| "  \(.name): \(.version)"
 		' composer.lock)
 
