@@ -403,9 +403,15 @@ jobs:
           VERSION_TAG="${{ steps.version.outputs.VERSION_TAG }}"
           PREVIOUS_TAG="${{ steps.changelog.outputs.PREVIOUS_TAG }}"
           REPO="${{ github.repository }}"
+          # The published name comes from package.json (e.g. @siratik/charts); the
+          # repo slug alone has no scope.
+          PKG_JSON="package.json"
+          [ "${{ inputs.use-workspace }}" = "true" ] && PKG_JSON="workspace-root/npm_packages/${PACKAGE_NAME}/package.json"
+          NPM_NAME=$(jq -r '.name // empty' "$PKG_JSON")
+          NPM_NAME="${NPM_NAME:-$PACKAGE_NAME}"
 
           {
-            echo "## ${PACKAGE_NAME} v${VERSION}"
+            echo "## \`${NPM_NAME}\` v${VERSION}"
             echo ""
             echo "### What's Changed"
             echo "$WHATS_CHANGED"
@@ -413,14 +419,14 @@ jobs:
             echo ""
             echo "### Installation"
             echo ""
-            echo "#### Via npm (from GitHub Packages):"
+            echo "#### Via npm:"
             echo '```bash'
-            echo "npm install @builtnorth/${PACKAGE_NAME}@${VERSION}"
+            echo "npm install ${NPM_NAME}@${VERSION}"
             echo '```'
             echo ""
             echo "#### Via package.json:"
             echo '```json'
-            echo "\"@builtnorth/${PACKAGE_NAME}\": \"${VERSION}\""
+            echo "\"${NPM_NAME}\": \"${VERSION}\""
             echo '```'
             echo ""
             echo "### What's included"
