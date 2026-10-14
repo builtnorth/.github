@@ -32,6 +32,16 @@ on:
                 required: false
                 type: boolean
                 default: false
+            extra-plugins:
+                description: "Space-separated plugin repos mapped into wp-env for PHP tests (see wp-plugin-ci.yml)"
+                required: false
+                type: string
+                default: ""
+            extra-phpunit-configs:
+                description: "Space-separated extra PHPUnit configs run in the pre-release CI gate"
+                required: false
+                type: string
+                default: ""
         secrets:
             ORG_REPO_TOKEN:
                 required: false
@@ -77,6 +87,8 @@ jobs:
             wordpress-versions: ${{ inputs.wordpress-versions }}
             run-e2e: ${{ inputs.run-e2e }}
             run-wp-taint: ${{ inputs.run-wp-taint }}
+            extra-plugins: ${{ inputs.extra-plugins }}
+            extra-phpunit-configs: ${{ inputs.extra-phpunit-configs }}
         secrets:
             ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 
