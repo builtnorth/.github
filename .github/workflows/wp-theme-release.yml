@@ -162,6 +162,8 @@ jobs:
                   composer config --unset version || true
 
             - name: Preserve committed builtnorth dependency constraints
+              env:
+                  COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
 
             - name: Validate committed Composer constraints
