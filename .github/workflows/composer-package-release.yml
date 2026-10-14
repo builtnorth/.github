@@ -304,9 +304,13 @@ jobs:
                   if [ -z "$PREVIOUS_TAG" ]; then
                     echo "No previous tag found, including all commits"
                     COMMITS=$(git log --pretty=format:"- %s (%h)" --reverse)
+                    # Backtick @name / @scope/pkg so GitHub never turns them into user mentions (it lists mentioned users as release contributors).
+                    COMMITS=$(printf '%s\n' "$COMMITS" | sed -E 's/(^|[^`[:alnum:]])(@[[:alnum:]_.-]+(\/[[:alnum:]_.-]+)?)/\1`\2`/g')
                   else
                     echo "Generating changelog from $PREVIOUS_TAG to HEAD ($CURRENT)"
                     COMMITS=$(git log "${PREVIOUS_TAG}"..HEAD --pretty=format:"- %s (%h)" --reverse)
+                    # Backtick @name / @scope/pkg so GitHub never turns them into user mentions (it lists mentioned users as release contributors).
+                    COMMITS=$(printf '%s\n' "$COMMITS" | sed -E 's/(^|[^`[:alnum:]])(@[[:alnum:]_.-]+(\/[[:alnum:]_.-]+)?)/\1`\2`/g')
                   fi
 
                   # Format changelog

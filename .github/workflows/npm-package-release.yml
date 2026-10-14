@@ -316,6 +316,8 @@ jobs:
           echo "Comparing changes from $PREVIOUS_TAG to HEAD ($CURRENT)"
 
           COMMITS=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD | grep -v "Merge branch" || true)
+          # Backtick @name / @scope/pkg so GitHub never turns them into user mentions (it lists mentioned users as release contributors).
+          COMMITS=$(printf '%s\n' "$COMMITS" | sed -E 's/(^|[^`[:alnum:]])(@[[:alnum:]_.-]+(\/[[:alnum:]_.-]+)?)/\1`\2`/g')
 
           # Group commits by type. Matches plain (fix:), scoped (fix(auth):),
           # and breaking (fix!:, fix(auth)!:) Conventional Commits forms — a bare
