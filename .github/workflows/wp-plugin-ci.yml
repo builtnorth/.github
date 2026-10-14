@@ -162,8 +162,14 @@ jobs:
 
       - name: Install and start wp-env
         run: |
-          npm init -y
-          npm install @wordpress/env
+          # Install wp-env in its own folder: installing it in the plugin root
+          # would also resolve the plugin's own npm dependencies, and those
+          # include packages that only resolve inside the monorepo.
+          WP_ENV_DIR="$RUNNER_TEMP/wp-env-tool"
+          mkdir -p "$WP_ENV_DIR"
+          npm install --prefix "$WP_ENV_DIR" --no-audit --no-fund @wordpress/env
+          WP_ENV="$WP_ENV_DIR/node_modules/.bin/wp-env"
+          echo "WP_ENV=$WP_ENV" >> "$GITHUB_ENV"
 
           WP_VER="${{ matrix.wordpress-version }}"
           PHP_VER="${{ matrix.php-version }}"
@@ -181,17 +187,17 @@ jobs:
           echo "wp-env override:"
           cat .wp-env.override.json
 
-          npx wp-env start
+          "$WP_ENV" start
 
       - name: Verify wp-env PHP and WordPress
         run: |
-          npx wp-env run tests-cli php -r 'echo PHP_VERSION, PHP_EOL;'
-          npx wp-env run tests-cli wp core version
+          "$WP_ENV" run tests-cli php -r 'echo PHP_VERSION, PHP_EOL;'
+          "$WP_ENV" run tests-cli wp core version
 
       - name: Run PHPUnit tests
         run: |
           # Run tests in the wp-env container with vendor directory from host
-          npx wp-env run tests-cli --env-cwd=/var/www/html/wp-content/plugins/${{ env.PLUGIN_SLUG }} ./vendor/bin/phpunit
+          "$WP_ENV" run tests-cli --env-cwd=/var/www/html/wp-content/plugins/${{ env.PLUGIN_SLUG }} ./vendor/bin/phpunit
 
       - name: Upload coverage to Codecov
         if: matrix.php-version == '8.1' && matrix.wordpress-version == 'latest'
