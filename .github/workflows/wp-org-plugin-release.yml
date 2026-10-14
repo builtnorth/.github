@@ -337,18 +337,3 @@ jobs:
                     "$PLUGIN_NAME.zip" \
                     "$PLUGIN_NAME.manifest.txt" \
                     "$PLUGIN_NAME.zip.sha256"
-
-            # The release planner (release.mjs) waits for every released plugin
-            # to appear in the private Composer index.
-            - name: Refresh Composer plugin index
-              continue-on-error: true
-              env:
-                  GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-              run: |
-                  if [ -z "$GH_TOKEN" ]; then
-                    echo "ORG_REPO_TOKEN not set; skip composer index"
-                    exit 0
-                  fi
-                  gh api --method POST repos/builtnorth/registry/dispatches --input - <<EOF
-                  {"event_type":"plugin-released","client_payload":{"plugin":"${{ steps.version.outputs.PLUGIN_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
-                  EOF
