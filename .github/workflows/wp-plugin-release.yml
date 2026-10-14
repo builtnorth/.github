@@ -42,6 +42,11 @@ on:
                 required: false
                 type: string
                 default: ""
+            e2e-plugins:
+                description: "Space-separated plugin repos installed and activated for E2E (see wp-plugin-ci.yml)"
+                required: false
+                type: string
+                default: ""
         secrets:
             ORG_REPO_TOKEN:
                 required: false
@@ -89,6 +94,7 @@ jobs:
             run-wp-taint: ${{ inputs.run-wp-taint }}
             extra-plugins: ${{ inputs.extra-plugins }}
             extra-phpunit-configs: ${{ inputs.extra-phpunit-configs }}
+            e2e-plugins: ${{ inputs.e2e-plugins }}
         secrets:
             ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 

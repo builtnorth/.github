@@ -73,6 +73,11 @@ on:
         required: false
         type: string
         default: ''
+      e2e-plugins:
+        description: 'Space-separated builtnorth plugin repos whose latest release is installed and activated next to this plugin for E2E (e.g. a host plugin an add-on needs)'
+        required: false
+        type: string
+        default: ''
     secrets:
       ORG_REPO_TOKEN:
         required: false
@@ -502,13 +507,22 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Start wp-env
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
         run: |
-          cat > .wp-env.override.json <<EOF
-          {
-            "phpVersion": "8.2",
-            "core": null
-          }
-          EOF
+          # This plugin plus any e2e-plugins, each from its latest release
+          # zip; wp-env activates every entry in "plugins".
+          PLUGINS='["."]'
+          for EXTRA in ${{ inputs.e2e-plugins }}; do
+            EXTRA_DIR="$RUNNER_TEMP/e2e-plugins"
+            mkdir -p "$EXTRA_DIR"
+            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$EXTRA_DIR" --clobber
+            unzip -q -o "$EXTRA_DIR/${EXTRA}.zip" -d "$EXTRA_DIR"
+            PLUGINS=$(jq -c --arg p "$EXTRA_DIR/${EXTRA}" '. + [$p]' <<< "$PLUGINS")
+          done
+          jq -n --argjson plugins "$PLUGINS" '{phpVersion: "8.2", core: null, plugins: $plugins}' > .wp-env.override.json
+          echo "wp-env override:"
+          cat .wp-env.override.json
           npx wp-env start
 
       - name: Run Playwright
