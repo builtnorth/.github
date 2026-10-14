@@ -15,7 +15,8 @@
 #   GH_TOKEN  — PAT with repo scope across all builtnorth/* repos (required)
 #
 # The script clones builtnorth/registry to a temp dir, appends the new version
-# entry to packages.json, commits and pushes. It retries up to 5 times on push
+# entry to packages.json (and lists a new library in libraries.json), commits
+# and pushes. It retries up to 5 times on push
 # conflicts (parallel release jobs writing simultaneously).
 set -euo pipefail
 
@@ -167,9 +168,28 @@ jq \
 echo "packages.json updated — ${PACKAGE}@${VERSION} added."
 
 # ---------------------------------------------------------------------------
+# 4b. Keep the library listed in libraries.json. Every plugin release rebuilds
+#     packages.json from scratch out of plugins.json + libraries.json, so a
+#     library that isn't listed there drops out of the index at that point.
+# ---------------------------------------------------------------------------
+if [ "$PKG_TYPE" != "wordpress-plugin" ]; then
+	if [ ! -f libraries.json ]; then
+		echo '[]' > libraries.json
+	fi
+	if ! jq -e --arg name "$PACKAGE" 'any(.[]; .name == $name)' libraries.json >/dev/null; then
+		jq --tab --arg name "$PACKAGE" --arg repo "$SLUG" '. + [{"name": $name, "repo": $repo}]' \
+			libraries.json > libraries.json.tmp && mv libraries.json.tmp libraries.json
+		echo "libraries.json updated — ${PACKAGE} (${ORG}/${SLUG}) listed."
+	fi
+fi
+
+# ---------------------------------------------------------------------------
 # 5. Commit and push (retry up to 5 times on push conflicts)
 # ---------------------------------------------------------------------------
 git add packages.json
+if [ -f libraries.json ]; then
+	git add libraries.json
+fi
 
 if git diff --cached --quiet; then
 	echo "${PACKAGE}@${VERSION} already in index; nothing to commit."
