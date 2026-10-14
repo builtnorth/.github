@@ -180,7 +180,7 @@
     },
     {
       "slug": "kitaris-add-on-business-profile",
-      "type": "composer",
+      "type": "plugin",
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
