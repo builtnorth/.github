@@ -172,7 +172,8 @@ jobs:
           fi
 
       - name: Run PHPUnit with coverage
-        run: vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+        # Through the package's test script, so flags it needs (e.g. --prepend) apply.
+        run: composer test -- --coverage-text --coverage-clover=coverage.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
