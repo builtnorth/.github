@@ -19,8 +19,16 @@ fi
 # same release run would be invisible to this one. A commit URL is never stale.
 INDEX_SHA=""
 if [ -n "$TOKEN" ]; then
-	INDEX_SHA="$(git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')" \
-		ls-remote "https://github.com/${ORG}/registry.git" refs/heads/main 2>/dev/null | cut -f1)"
+	# Header via GIT_CONFIG_* env, not `-c`, so it stays out of the process list.
+	# KEY_0 (empty) clears headers set by actions/checkout in the workspace repo:
+	# git would send both Authorization headers and GitHub rejects the request.
+	# Best effort: on failure INDEX_URL falls back to main.
+	INDEX_SHA="$(GIT_CONFIG_COUNT=2 \
+		GIT_CONFIG_KEY_0="http.https://github.com/.extraheader" \
+		GIT_CONFIG_VALUE_0="" \
+		GIT_CONFIG_KEY_1="http.https://github.com/.extraheader" \
+		GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')" \
+		git ls-remote "https://github.com/${ORG}/registry.git" refs/heads/main 2>/dev/null | cut -f1)" || INDEX_SHA=""
 fi
 INDEX_URL="${BUILTNORTH_COMPOSER_INDEX_URL:-https://raw.githubusercontent.com/${ORG}/registry/${INDEX_SHA:-main}}"
 

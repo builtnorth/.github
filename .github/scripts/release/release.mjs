@@ -26,6 +26,7 @@ function readJson(file) {
 function run(command, args, options = {}) {
 	return execFileSync(command, args, {
 		cwd: options.cwd,
+		env: options.env,
 		encoding: "utf8",
 		stdio: options.stdio ?? ["ignore", "pipe", "pipe"],
 	}).trim();
@@ -527,41 +528,53 @@ async function waitForRun(repo, runId) {
 
 
 /**
- * git -c args that authenticate github.com with GH_TOKEN. builtnorth/registry
- * is private; the header is passed per command so the token is never written
- * to the clone's .git/config.
+ * Environment that authenticates git's github.com requests with GH_TOKEN.
+ * builtnorth/registry is private. The header goes through GIT_CONFIG_* env
+ * vars, not `-c` args: arguments end up in error messages (which this script
+ * prints) and the process list, and Actions only masks the raw token, not its
+ * base64 form. Nothing is written to the clone's .git/config.
  */
-function githubAuthArgs() {
+function githubAuthEnv() {
 	const token = process.env.GH_TOKEN;
-	if (!token) return [];
+	if (!token) return undefined;
 	const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
-	return ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`];
+	// KEY_0 (empty) clears any header already configured (actions/checkout sets
+	// one); two Authorization headers make GitHub reject the request.
+	return {
+		...process.env,
+		GIT_CONFIG_COUNT: "2",
+		GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader",
+		GIT_CONFIG_VALUE_0: "",
+		GIT_CONFIG_KEY_1: "http.https://github.com/.extraheader",
+		GIT_CONFIG_VALUE_1: `AUTHORIZATION: basic ${basic}`,
+	};
 }
 
 function prepareComposerIndex(workspace) {
 	const indexPath = path.join(workspace, "_composer-index");
 	if (!fs.existsSync(path.join(indexPath, ".git"))) {
 		console.log("Cloning builtnorth/registry release index...");
-		run("git", [
-			...githubAuthArgs(),
-			"clone",
-			"--filter=blob:none",
-			"--no-checkout",
-			"https://github.com/builtnorth/registry.git",
-			indexPath,
-		]);
+		run(
+			"git",
+			[
+				"clone",
+				"--filter=blob:none",
+				"--no-checkout",
+				"https://github.com/builtnorth/registry.git",
+				indexPath,
+			],
+			{ env: githubAuthEnv() },
+		);
 	}
 	return indexPath;
 }
 
 function composerIndexHasVersion(indexPath, packageName, version) {
-	git(indexPath, [
-		...githubAuthArgs(),
-		"fetch",
-		"--prune",
-		"origin",
-		"+refs/heads/main:refs/remotes/origin/main",
-	]);
+	run(
+		"git",
+		["fetch", "--prune", "origin", "+refs/heads/main:refs/remotes/origin/main"],
+		{ cwd: indexPath, env: githubAuthEnv() },
+	);
 	const repository = JSON.parse(
 		git(indexPath, ["show", "origin/main:packages.json"]),
 	);
