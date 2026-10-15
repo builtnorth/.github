@@ -526,11 +526,24 @@ async function waitForRun(repo, runId) {
 }
 
 
+/**
+ * git -c args that authenticate github.com with GH_TOKEN. builtnorth/registry
+ * is private; the header is passed per command so the token is never written
+ * to the clone's .git/config.
+ */
+function githubAuthArgs() {
+	const token = process.env.GH_TOKEN;
+	if (!token) return [];
+	const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+	return ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${basic}`];
+}
+
 function prepareComposerIndex(workspace) {
 	const indexPath = path.join(workspace, "_composer-index");
 	if (!fs.existsSync(path.join(indexPath, ".git"))) {
 		console.log("Cloning builtnorth/registry release index...");
 		run("git", [
+			...githubAuthArgs(),
 			"clone",
 			"--filter=blob:none",
 			"--no-checkout",
@@ -543,6 +556,7 @@ function prepareComposerIndex(workspace) {
 
 function composerIndexHasVersion(indexPath, packageName, version) {
 	git(indexPath, [
+		...githubAuthArgs(),
 		"fetch",
 		"--prune",
 		"origin",
