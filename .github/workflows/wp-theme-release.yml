@@ -404,3 +404,18 @@ jobs:
                     ${{ steps.version.outputs.THEME_NAME }}.zip \
                     ${{ steps.version.outputs.THEME_NAME }}.manifest.txt \
                     ${{ steps.version.outputs.THEME_NAME }}.zip.sha256
+
+            # Themes are indexed in builtnorth/registry (themes.json) like plugins.
+            - name: Refresh Composer theme index
+              if: inputs.version != 'ci-only'
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+              run: |
+                  if [ -z "$GH_TOKEN" ]; then
+                    echo "ORG_REPO_TOKEN not set; skip composer index"
+                    exit 0
+                  fi
+                  gh api --method POST repos/builtnorth/registry/dispatches --input - <<EOF
+                  {"event_type":"theme-released","client_payload":{"theme":"${{ steps.version.outputs.THEME_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
+                  EOF
