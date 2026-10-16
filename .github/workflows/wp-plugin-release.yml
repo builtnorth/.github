@@ -52,7 +52,7 @@ on:
                 required: false
 
 concurrency:
-    group: release-${{ github.repository }}
+    group: release-${{ github.repository }}${{ inputs.version == 'ci-only' && '-ci-only' || '' }}
     cancel-in-progress: false
 
 jobs:
@@ -100,7 +100,7 @@ jobs:
 
     build:
         needs: [preflight, ci]
-        if: needs.preflight.outputs.already_released != 'true'
+        if: needs.preflight.outputs.already_released != 'true' && inputs.version != 'ci-only'
         runs-on: ubuntu-latest
         permissions:
             contents: write

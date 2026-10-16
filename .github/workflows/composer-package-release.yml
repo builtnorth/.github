@@ -65,7 +65,7 @@ env:
     COMPOSER_NAMESPACE: ${{ inputs.composer-namespace || format('builtnorth/{0}', github.event.repository.name) }}
 
 concurrency:
-    group: release-${{ github.repository }}
+    group: release-${{ github.repository }}${{ inputs.version == 'ci-only' && '-ci-only' || '' }}
     cancel-in-progress: false
 
 jobs:
@@ -115,6 +115,7 @@ jobs:
             && needs.preflight.result == 'success'
             && needs.preflight.outputs.already_released != 'true'
             && (needs.ci.result == 'success' || needs.ci.result == 'skipped')
+            && inputs.version != 'ci-only'
         runs-on: ubuntu-latest
         permissions:
             contents: write
