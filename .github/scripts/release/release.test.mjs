@@ -263,3 +263,58 @@ test("a package's first release is 0.1.0, then it bumps from its tag", () => {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
 });
+
+// runInDependencyOrder: dependencies first, independent work in parallel.
+{
+	const { runInDependencyOrder } = await import("./release.mjs");
+	const entry = (slug, deps = []) => ({ node: { slug, dependencies: deps.map((d) => ({ node: { slug: d } })) } });
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+
+	test("runInDependencyOrder starts each entry after its dependencies finish", async () => {
+		const finished = [];
+		const started = {};
+		await runInDependencyOrder(
+			[entry("a"), entry("b", ["a"]), entry("c", ["a"]), entry("d", ["b", "c"])],
+			async ({ node }) => {
+				started[node.slug] = [...finished];
+				await tick();
+				finished.push(node.slug);
+			},
+			{ concurrency: 4 },
+		);
+		assert.deepEqual(started.a, []);
+		assert.ok(started.b.includes("a") && started.c.includes("a"));
+		assert.ok(started.d.includes("b") && started.d.includes("c"));
+	});
+
+	test("runInDependencyOrder runs independent entries at once, up to the cap", async () => {
+		let active = 0;
+		let peak = 0;
+		await runInDependencyOrder(
+			["a", "b", "c", "d", "e"].map((slug) => entry(slug)),
+			async () => {
+				active++;
+				peak = Math.max(peak, active);
+				await tick();
+				active--;
+			},
+			{ concurrency: 3 },
+		);
+		assert.equal(peak, 3);
+	});
+
+	test("runInDependencyOrder skips dependents of a failure and finishes the rest", async () => {
+		const ran = [];
+		await assert.rejects(
+			runInDependencyOrder(
+				[entry("a"), entry("b", ["a"]), entry("c")],
+				async ({ node }) => {
+					ran.push(node.slug);
+					if (node.slug === "a") throw new Error("boom");
+				},
+			),
+			/2 release\(s\) did not complete[\s\S]*a: boom[\s\S]*b: skipped/,
+		);
+		assert.deepEqual(ran.sort(), ["a", "c"]);
+	});
+}
