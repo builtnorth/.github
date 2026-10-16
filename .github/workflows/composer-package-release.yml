@@ -269,11 +269,20 @@ jobs:
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
 
-                  git add composer.json composer.lock version.php inc/Core/Constants.php inc/classes/Base/DefineConstants.php 2>/dev/null || true
+                  # One file at a time: a single `git add` with a missing or
+                  # ignored path stages nothing, which shipped every release with
+                  # an unstamped version.php (package-loader then cannot tell the
+                  # bundled copies apart).
+                  for f in composer.json composer.lock version.php inc/Core/Constants.php inc/classes/Base/DefineConstants.php package.json package-lock.json; do
+                    if [ -e "$f" ]; then
+                      git add -- "$f" 2>/dev/null || true
+                    fi
+                  done
 
-                  # Add package.json updates if they exist
-                  if [ -f package.json ]; then
-                    git add package.json package-lock.json 2>/dev/null || true
+                  # A stamped version.php that did not get staged would ship stale.
+                  if [ -f version.php ] && ! git diff --quiet -- version.php; then
+                    echo "::error::version.php was stamped but not staged."
+                    exit 1
                   fi
 
                   # Commit if there are changes
