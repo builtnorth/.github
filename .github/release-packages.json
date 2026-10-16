@@ -308,6 +308,7 @@
     {
       "slug": "kitaris-environment-indicator",
       "type": "plugin",
+      "composerIndex": false,
       "dependencies": [["environment-indicator", "composer", "^0.1"]]
     },
     {

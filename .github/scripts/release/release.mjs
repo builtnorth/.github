@@ -739,7 +739,8 @@ async function executePlan(plan) {
 		await waitForRun(node.repo, runId);
 
 		// Themes aren't in the private Composer index: nothing requires a theme through Composer.
-		if (node.type !== "npm" && node.type !== "theme") {
+		// Neither are entries with "composerIndex": false, such as public WordPress.org plugins.
+		if (node.type !== "npm" && node.type !== "theme" && node.composerIndex !== false) {
 			console.log(`Waiting for ${composerPackageName(node)} ${version} in Composer...`);
 			await waitForComposerIndex(composerIndex, node, version);
 		}

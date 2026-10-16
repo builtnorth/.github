@@ -10,6 +10,7 @@ trap 'rm -rf "$FIXTURE_DIR"' EXIT
 STUB_BIN="${FIXTURE_DIR}/bin"
 mkdir -p "$STUB_BIN"
 export INDEX_OUT="${FIXTURE_DIR}/packages.json"
+export LIBRARIES_OUT="${FIXTURE_DIR}/libraries.json"
 export GH_LOG="${FIXTURE_DIR}/gh.log"
 
 # git: "clone" makes an empty index checkout; "push" saves packages.json.
@@ -17,7 +18,7 @@ cat >"${STUB_BIN}/git" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
 	clone) mkdir -p "${@: -1}" ;;
-	push) cp packages.json "$INDEX_OUT" ;;
+	push) cp packages.json "$INDEX_OUT"; cp libraries.json "$LIBRARIES_OUT" ;;
 	diff) exit 1 ;;
 	*) ;;
 esac
@@ -50,10 +51,17 @@ if [ "$name" != "siratik/utility" ] || [ "$url" != "https://github.com/builtnort
 	exit 1
 fi
 
+# The library is listed in libraries.json, so a full index rebuild keeps it.
+listed="$(jq -c '[.[] | select(.name == "siratik/utility")]' "$LIBRARIES_OUT")"
+if [ "$listed" != '[{"name":"siratik/utility","repo":"utility"}]' ]; then
+	echo "FAIL: expected siratik/utility listed once in libraries.json, got ${listed}" >&2
+	exit 1
+fi
+
 # A release that can't be found fails instead of skipping the index silently.
 if bash "${SCRIPT_DIR}/update-composer-index.sh" siratik/missing 1.2.3 missing >/dev/null 2>&1; then
 	echo "FAIL: a missing release must fail the index update." >&2
 	exit 1
 fi
 
-echo "PASS: update-composer-index keys by Composer name and reads the given repo."
+echo "PASS: update-composer-index keys by Composer name, reads the given repo, and lists the library."

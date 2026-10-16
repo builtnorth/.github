@@ -63,6 +63,21 @@ on:
         required: false
         type: boolean
         default: false
+      extra-plugins:
+        description: 'Space-separated builtnorth plugin repos whose latest release zip is mapped into wp-env for PHP tests (e.g. "kitaris-forms")'
+        required: false
+        type: string
+        default: ''
+      extra-phpunit-configs:
+        description: 'Space-separated extra PHPUnit config files to run after phpunit.xml (e.g. "phpunit-integration.xml")'
+        required: false
+        type: string
+        default: ''
+      e2e-plugins:
+        description: 'Space-separated builtnorth plugin repos whose latest release is installed and activated next to this plugin for E2E (e.g. a host plugin an add-on needs)'
+        required: false
+        type: string
+        default: ''
     secrets:
       ORG_REPO_TOKEN:
         required: false
@@ -161,6 +176,8 @@ jobs:
           fi
 
       - name: Install and start wp-env
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
         run: |
           # Install wp-env in its own folder: installing it in the plugin root
           # would also resolve the plugin's own npm dependencies, and those
@@ -178,12 +195,21 @@ jobs:
           else
             CORE="\"WordPress/WordPress#${WP_VER}\""
           fi
-          cat > .wp-env.override.json <<EOF
-          {
-            "phpVersion": "${PHP_VER}",
-            "core": ${CORE}
-          }
-          EOF
+          # Sibling plugins some tests need (e.g. kitaris-forms), from each
+          # repo's latest release zip, mapped next to this plugin.
+          MAPPINGS="{}"
+          for EXTRA in ${{ inputs.extra-plugins }}; do
+            EXTRA_DIR="$RUNNER_TEMP/extra-plugins"
+            mkdir -p "$EXTRA_DIR"
+            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$EXTRA_DIR" --clobber
+            unzip -q -o "$EXTRA_DIR/${EXTRA}.zip" -d "$EXTRA_DIR"
+            MAPPINGS=$(jq -c --arg k "wp-content/plugins/${EXTRA}" --arg v "$EXTRA_DIR/${EXTRA}" '. + {($k): $v}' <<< "$MAPPINGS")
+          done
+
+          jq -n --arg php "$PHP_VER" --argjson core "$CORE" --argjson mappings "$MAPPINGS" \
+            '{phpVersion: $php, core: $core}
+              + (if $mappings == {} then {} else {mappings: $mappings, env: {tests: {mappings: $mappings}}} end)' \
+            > .wp-env.override.json
           echo "wp-env override:"
           cat .wp-env.override.json
 
@@ -198,6 +224,10 @@ jobs:
         run: |
           # Run tests in the wp-env container with vendor directory from host
           "$WP_ENV" run tests-cli --env-cwd=/var/www/html/wp-content/plugins/${{ env.PLUGIN_SLUG }} ./vendor/bin/phpunit
+          for CONFIG in ${{ inputs.extra-phpunit-configs }}; do
+            echo "Running $CONFIG"
+            "$WP_ENV" run tests-cli --env-cwd=/var/www/html/wp-content/plugins/${{ env.PLUGIN_SLUG }} ./vendor/bin/phpunit -c "$CONFIG"
+          done
 
       - name: Upload coverage to Codecov
         if: matrix.php-version == '8.1' && matrix.wordpress-version == 'latest'
@@ -263,8 +293,12 @@ jobs:
 
       - name: Run PHPCS
         run: |
-          # Run PHPCS (suppress cs2pr error on empty output)
-          vendor/bin/phpcs --report=checkstyle | cs2pr || true
+          # Full report in the log, checkstyle for PR annotations; the job
+          # fails on phpcs's own exit status (errors only, warnings pass).
+          status=0
+          vendor/bin/phpcs -q --report-full --report-checkstyle=phpcs-checkstyle.xml || status=$?
+          cs2pr --graceful-warnings phpcs-checkstyle.xml || true
+          exit "$status"
 
   php-compatibility:
     if: inputs.run-php-compatibility
@@ -461,19 +495,34 @@ jobs:
           fi
 
       - name: Install Playwright tooling
-        run: npm install --omit=prod --no-audit --no-fund
+        run: |
+          # build/ is committed, so E2E needs only the dev tooling. Runtime
+          # dependencies include monorepo-only packages that are on no
+          # registry, and npm resolves them even with --omit=prod. This is a
+          # throwaway checkout, so drop them before installing.
+          npm pkg delete dependencies
+          npm install --no-audit --no-fund
 
       - name: Install Chromium
         run: npx playwright install chromium --with-deps
 
       - name: Start wp-env
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
         run: |
-          cat > .wp-env.override.json <<EOF
-          {
-            "phpVersion": "8.2",
-            "core": null
-          }
-          EOF
+          # This plugin plus any e2e-plugins, each from its latest release
+          # zip; wp-env activates every entry in "plugins".
+          PLUGINS='["."]'
+          for EXTRA in ${{ inputs.e2e-plugins }}; do
+            EXTRA_DIR="$RUNNER_TEMP/e2e-plugins"
+            mkdir -p "$EXTRA_DIR"
+            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$EXTRA_DIR" --clobber
+            unzip -q -o "$EXTRA_DIR/${EXTRA}.zip" -d "$EXTRA_DIR"
+            PLUGINS=$(jq -c --arg p "$EXTRA_DIR/${EXTRA}" '. + [$p]' <<< "$PLUGINS")
+          done
+          jq -n --argjson plugins "$PLUGINS" '{phpVersion: "8.2", core: null, plugins: $plugins}' > .wp-env.override.json
+          echo "wp-env override:"
+          cat .wp-env.override.json
           npx wp-env start
 
       - name: Run Playwright

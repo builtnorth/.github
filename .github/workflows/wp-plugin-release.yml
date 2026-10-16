@@ -32,6 +32,21 @@ on:
                 required: false
                 type: boolean
                 default: false
+            extra-plugins:
+                description: "Space-separated plugin repos mapped into wp-env for PHP tests (see wp-plugin-ci.yml)"
+                required: false
+                type: string
+                default: ""
+            extra-phpunit-configs:
+                description: "Space-separated extra PHPUnit configs run in the pre-release CI gate"
+                required: false
+                type: string
+                default: ""
+            e2e-plugins:
+                description: "Space-separated plugin repos installed and activated for E2E (see wp-plugin-ci.yml)"
+                required: false
+                type: string
+                default: ""
         secrets:
             ORG_REPO_TOKEN:
                 required: false
@@ -77,6 +92,9 @@ jobs:
             wordpress-versions: ${{ inputs.wordpress-versions }}
             run-e2e: ${{ inputs.run-e2e }}
             run-wp-taint: ${{ inputs.run-wp-taint }}
+            extra-plugins: ${{ inputs.extra-plugins }}
+            extra-phpunit-configs: ${{ inputs.extra-phpunit-configs }}
+            e2e-plugins: ${{ inputs.e2e-plugins }}
         secrets:
             ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 
@@ -256,8 +274,9 @@ jobs:
                   # size limit for the private Composer index's mirrored dist.
                   find ${{ steps.version.outputs.PLUGIN_NAME }}/vendor -type d -name ".git" -prune -exec rm -rf {} + 2>/dev/null || true
 
-                  # Source maps are dev-only debugging artifacts, not needed in production.
-                  find ${{ steps.version.outputs.PLUGIN_NAME }}/build -type f -name "*.js.map" -delete 2>/dev/null || true
+                  # Source maps are dev-only debugging artifacts. Strip them everywhere,
+                  # vendor/ included: bundled packages (the framework's build/) ship them too.
+                  find ${{ steps.version.outputs.PLUGIN_NAME }} -type f -name "*.map" -delete 2>/dev/null || true
 
                   # Create the zip (src directory is not copied, so no need to exclude)
                   zip -r ${{ steps.version.outputs.PLUGIN_NAME }}.zip ${{ steps.version.outputs.PLUGIN_NAME }}/

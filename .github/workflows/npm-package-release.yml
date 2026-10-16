@@ -260,6 +260,10 @@ jobs:
             fi
           done
 
+          # JS unit tests live beside the source; they aren't part of the package.
+          find release-package -path release-package/node_modules -prune -o -type d \( -name test -o -name __tests__ \) -prune -exec rm -rf {} +
+          find release-package -name node_modules -prune -o -type f \( -name '*.test.js' -o -name '*.test.mjs' \) -exec rm -f {} +
+
           # Update package.json to point to built files
           cd release-package
           node -e "

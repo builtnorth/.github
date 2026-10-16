@@ -144,6 +144,15 @@ jobs:
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
                   echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
 
+            - name: Verify committed production artifacts
+              run: |
+                  # Composer installs the tagged source, build/ included, so
+                  # this must fail before anything is tagged.
+                  if [ -d build ] && grep -RIl --include='*.js' --fixed-strings '// webpackBootstrap' build/; then
+                    echo "::error::Committed build/ contains development webpack bundles. Run the local release prebuild, commit its production output, and retry."
+                    exit 1
+                  fi
+
             - name: Setup PHP
               uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
               with:
@@ -236,7 +245,7 @@ jobs:
                   fi
                   echo "Private Composer token source: $( [ -n "${ORG_REPO_TOKEN}" ] && echo ORG_REPO_TOKEN || echo WORKFLOW_TOKEN )"
 
-                  DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep '^builtnorth/' || true)
+                  DIRECT_PACKAGES=$(jq -r '.require // {} | keys[]' composer.json | grep -E '^(builtnorth|kitaris|siratik)/' || true)
                   bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh prepare
 
                   composer update --no-dev --no-scripts --no-interaction --prefer-dist
