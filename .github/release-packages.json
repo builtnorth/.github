@@ -48,7 +48,7 @@
       ]
     },
     {
-      "slug": "secret-cipher",
+      "slug": "cryptography",
       "type": "composer",
       "dependencies": [["package-loader", "composer", "^0.1"]]
     },
@@ -103,7 +103,7 @@
       "dependencies": [
         ["job-dispatcher", "composer", "^0.1"],
         ["rest-access", "composer", "^0.1"],
-        ["secret-cipher", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
@@ -165,7 +165,7 @@
         ["config", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"],
         ["license-manager", "composer", "^0.1"],
-        ["secret-cipher", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1"],
         ["job-dispatcher", "composer", "^0.1"],
         ["abilities", "composer", "^0.1"],
         ["kitaris-module-ai", "composer", "^0.1"],
