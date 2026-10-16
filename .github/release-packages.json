@@ -48,7 +48,7 @@
       ]
     },
     {
-      "slug": "secret-cipher",
+      "slug": "cryptography",
       "type": "composer",
       "dependencies": [["package-loader", "composer", "^0.1"]]
     },
@@ -57,7 +57,8 @@
       "type": "composer",
       "dependencies": [
         ["rest-access", "composer", "^0.1"],
-        ["package-loader", "composer", "^0.1"]
+        ["package-loader", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1.1"]
       ]
     },
     {
@@ -103,7 +104,7 @@
       "dependencies": [
         ["job-dispatcher", "composer", "^0.1"],
         ["rest-access", "composer", "^0.1"],
-        ["secret-cipher", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
@@ -156,16 +157,16 @@
         ["post-types", "composer", "^0.1"],
         ["access-control", "composer", "^0.1"],
         ["integrations", "composer", "^0.1"],
-        ["baseline", "composer", "^0.1"],
+        ["baseline", "composer", "^0.1.1"],
         ["environment-indicator", "composer", "^0.1"],
-        ["wp-portability", "composer", "^0.1"],
+        ["wp-portability", "composer", "^0.1.2"],
         ["utility", "composer", "^0.1"],
         ["atomic-store", "composer", "^0.1"],
-        ["rest-access", "composer", "^0.1"],
+        ["rest-access", "composer", "^0.1.1"],
         ["config", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"],
         ["license-manager", "composer", "^0.1"],
-        ["secret-cipher", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1.1"],
         ["job-dispatcher", "composer", "^0.1"],
         ["abilities", "composer", "^0.1"],
         ["kitaris-module-ai", "composer", "^0.1"],
