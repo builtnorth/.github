@@ -166,7 +166,7 @@
         ["config", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"],
         ["license-manager", "composer", "^0.1"],
-        ["cryptography", "composer", "^0.1.1"],
+        ["cryptography", "composer", "^0.1.3"],
         ["job-dispatcher", "composer", "^0.1"],
         ["abilities", "composer", "^0.1"],
         ["kitaris-module-ai", "composer", "^0.1"],
@@ -194,7 +194,7 @@
       "slug": "kitaris-analytics",
       "type": "plugin",
       "dependencies": [
-        ["kitaris", "composer", "^0.1"],
+        ["kitaris", "composer", "^0.1.5"],
         ["charts", "npm", "^0.1.0"],
         ["charts", "build", "*"],
         ["wp-component-library", "npm", "^0.1.0"],
@@ -216,7 +216,7 @@
       "slug": "kitaris-blocks",
       "type": "plugin",
       "dependencies": [
-        ["kitaris", "composer", "^0.1"],
+        ["kitaris", "composer", "^0.1.5"],
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["wp-blocks", "npm", "^0.2.0"],
