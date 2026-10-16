@@ -119,6 +119,8 @@ fi
 PKG_DESC=$(echo "$RAW_COMPOSER"    | jq -r '.description // ""')
 PKG_REQUIRE=$(echo "$RAW_COMPOSER" | jq '.require        // {}')
 PKG_AUTOLOAD=$(echo "$RAW_COMPOSER"| jq '.autoload       // {}')
+# extra matters for some types: a composer-plugin won't install without extra.class.
+PKG_EXTRA=$(echo "$RAW_COMPOSER"   | jq '.extra          // {}')
 
 # Normalised semver: x.y.z → x.y.z.0
 VERSION_NORM="${VERSION}.0"
@@ -141,6 +143,7 @@ jq \
 	--arg  desc      "$PKG_DESC" \
 	--argjson require  "$PKG_REQUIRE" \
 	--argjson autoload "$PKG_AUTOLOAD" \
+	--argjson extra    "$PKG_EXTRA" \
 	--arg  zip_url   "$ASSET_URL" \
 	--arg  commit    "$COMMIT" \
 	--arg  repo_url  "https://github.com/${ORG}/${SLUG}.git" \
@@ -152,6 +155,7 @@ jq \
 		"description":        $desc,
 		"require":            $require,
 		"autoload":           $autoload,
+		"extra":              $extra,
 		"dist": {
 			"type":      "zip",
 			"url":       $zip_url,

@@ -34,7 +34,7 @@ case "$path" in
 	repos/builtnorth/utility/git/ref/tags/v1.2.3)
 		if [[ "$*" == *object.type* ]]; then echo commit; else echo abc123; fi ;;
 	repos/builtnorth/utility/contents/composer.json*)
-		printf '%s' '{"name":"siratik/utility","type":"library"}' | base64 ;;
+		printf '%s' '{"name":"siratik/utility","type":"library","extra":{"class":"Example\\Plugin"}}' | base64 ;;
 	*) exit 1 ;;
 esac
 SH
@@ -48,6 +48,13 @@ name="$(jq -r '.packages["siratik/utility"]["1.2.3"].name' "$INDEX_OUT")"
 url="$(jq -r '.packages["siratik/utility"]["1.2.3"].source.url' "$INDEX_OUT")"
 if [ "$name" != "siratik/utility" ] || [ "$url" != "https://github.com/builtnorth/utility.git" ]; then
 	echo "FAIL: expected siratik/utility indexed from builtnorth/utility, got name=${name} url=${url}" >&2
+	exit 1
+fi
+
+# extra is kept: a composer-plugin won't install without extra.class.
+extra_class="$(jq -r '.packages["siratik/utility"]["1.2.3"].extra.class' "$INDEX_OUT")"
+if [ "$extra_class" != 'Example\Plugin' ]; then
+	echo "FAIL: expected extra.class to be kept, got ${extra_class}" >&2
 	exit 1
 fi
 
