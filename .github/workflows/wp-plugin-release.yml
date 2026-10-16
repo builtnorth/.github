@@ -100,7 +100,7 @@ jobs:
 
     build:
         needs: [preflight, ci]
-        if: needs.preflight.outputs.already_released != 'true' && inputs.version != 'ci-only'
+        if: needs.preflight.outputs.already_released != 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -115,6 +115,11 @@ jobs:
               id: version
               run: |
                   VERSION="${{ inputs.version }}"
+                  # Pre-flight (ci-only): build at the version the plugin already declares.
+                  if [ "$VERSION" = "ci-only" ]; then
+                    VERSION=$(sed -nE 's/^[[:space:]]*\*?[[:space:]]*Version:[[:space:]]*([^[:space:]]+).*/\1/p' "${GITHUB_REPOSITORY##*/}.php" | head -1)
+                    echo "Pre-flight: building at the declared version $VERSION."
+                  fi
                   # Remove 'v' prefix if provided
                   VERSION="${VERSION#v}"
                   echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
@@ -214,6 +219,7 @@ jobs:
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
 
             - name: Commit finalized manifests and lock
+              if: inputs.version != 'ci-only'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
@@ -370,6 +376,7 @@ jobs:
                   fi
 
             - name: Commit finalized release source
+              if: inputs.version != 'ci-only'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
@@ -380,6 +387,7 @@ jobs:
                   fi
 
             - name: Create exact-source tag
+              if: inputs.version != 'ci-only'
               run: |
                   TAG="${{ steps.version.outputs.VERSION_TAG }}"
                   git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
@@ -404,6 +412,7 @@ jobs:
             # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
             # Contents: write on this repo causes gh release create to return HTTP 403.
             - name: Create Release with GitHub CLI
+              if: inputs.version != 'ci-only'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   # Passed as env, never pasted into the script: commit messages are
@@ -431,6 +440,7 @@ jobs:
                     ${{ steps.version.outputs.PLUGIN_NAME }}.zip.sha256
 
             - name: Refresh Composer plugin index
+              if: inputs.version != 'ci-only'
               continue-on-error: true
               env:
                   GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}

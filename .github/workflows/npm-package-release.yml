@@ -118,7 +118,7 @@ jobs:
 
   build:
     needs: [preflight, ci]
-    if: needs.preflight.outputs.already_released != 'true' && inputs.version != 'ci-only'
+    if: needs.preflight.outputs.already_released != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -138,6 +138,11 @@ jobs:
             VERSION="${VERSION#v}"  # Remove v prefix
           elif [ -n "${{ inputs.version }}" ]; then
             VERSION="${{ inputs.version }}"
+            # Pre-flight (ci-only): build at the version package.json declares.
+            if [ "$VERSION" = "ci-only" ]; then
+              VERSION=$(jq -r .version package.json)
+              echo "Pre-flight: building at version $VERSION."
+            fi
             VERSION="${VERSION#v}"  # Remove v prefix if present
           else
             echo "Error: No version specified"
@@ -166,7 +171,7 @@ jobs:
           fi
 
       - name: Commit finalized release source
-        if: github.event_name != 'push'
+        if: (github.event_name != 'push') && inputs.version != 'ci-only'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -291,7 +296,7 @@ jobs:
           sha256sum ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz > ${{ steps.version.outputs.PACKAGE_NAME }}-${{ steps.version.outputs.VERSION }}.tar.gz.sha256
 
       - name: Create tag if not exists
-        if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+        if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
         run: |
           TAG="${{ steps.version.outputs.VERSION_TAG }}"
           git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
@@ -372,6 +377,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release with GitHub CLI
+        if: inputs.version != 'ci-only'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           # Passed as env, never pasted into the script: commit messages are
@@ -449,7 +455,7 @@ jobs:
             "$CHECKSUM_PATH"
 
       - name: Publish to npm registry
-        if: inputs.publish-to-npm
+        if: (inputs.publish-to-npm) && inputs.version != 'ci-only'
         run: |
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
             cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}/release-package
@@ -466,7 +472,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to GitHub Packages
-        if: inputs.publish-to-github
+        if: (inputs.publish-to-github) && inputs.version != 'ci-only'
         continue-on-error: true
         run: |
           if [ "${{ inputs.use-workspace }}" = "true" ]; then

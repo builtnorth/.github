@@ -115,7 +115,7 @@ jobs:
             && needs.preflight.result == 'success'
             && needs.preflight.outputs.already_released != 'true'
             && (needs.ci.result == 'success' || needs.ci.result == 'skipped')
-            && inputs.version != 'ci-only'
+           
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -135,6 +135,12 @@ jobs:
                     VERSION="${{ github.ref_name }}"
                   elif [ -n "${{ inputs.version }}" ]; then
                     VERSION="${{ inputs.version }}"
+                    # Pre-flight (ci-only): build at the version version.php declares.
+                    if [ "$VERSION" = "ci-only" ]; then
+                      VERSION=$(grep -oE "[0-9]+\.[0-9]+\.[0-9]+" version.php 2>/dev/null | head -1)
+                      VERSION="${VERSION:-0.0.0}"
+                      echo "Pre-flight: building at version $VERSION."
+                    fi
                     if [[ ! "$VERSION" =~ ^v ]]; then
                       VERSION="v$VERSION"
                     fi
@@ -264,7 +270,7 @@ jobs:
                   npm version ${{ steps.version.outputs.version_number }} --no-git-tag-version --allow-same-version
 
             - name: Commit finalized manifests and lock
-              if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
@@ -298,7 +304,7 @@ jobs:
               run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 
             - name: Create and push tag
-              if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+              if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
               run: |
                   TAG="${{ steps.version.outputs.version }}"
                   git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
@@ -434,6 +440,7 @@ jobs:
                   sha256sum "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip" > "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip.sha256"
 
             - name: Create GitHub Release
+              if: inputs.version != 'ci-only'
               uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
               with:
                   tag_name: ${{ steps.version.outputs.version }}
@@ -459,6 +466,7 @@ jobs:
                   echo "name=${NAME:-${{ env.COMPOSER_NAMESPACE }}}" >> "$GITHUB_OUTPUT"
 
             - name: Update Composer index
+              if: inputs.version != 'ci-only'
               env:
                   GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
               run: |
