@@ -743,8 +743,9 @@ async function preflightPlan(plan) {
 	const runs = [];
 	for (const { node } of plan.releases) {
 		const ref = node.developmentBranch;
+		const dispatchedAt = Date.now();
 		await dispatchRelease(node, ref, "ci-only");
-		runs.push({ node, ref, dispatchedAt: Date.now() });
+		runs.push({ node, ref, dispatchedAt });
 		console.log(`Pre-flight dispatched ${node.slug} (${ref})`);
 	}
 
@@ -927,9 +928,10 @@ async function releaseEntry(entry, composerIndex) {
 	]);
 	git(node.absolutePath, ["push", "origin", node.releaseBranch]);
 
-	await dispatchRelease(node, node.releaseBranch, version);
-
+	// Taken before dispatching: with releases running in parallel, the code after
+	// the await can resume tens of seconds later, after the run already exists.
 	const dispatchedAt = Date.now();
+	await dispatchRelease(node, node.releaseBranch, version);
 	console.log(`Dispatched ${node.slug} ${tag} — locating run...`);
 
 	// Locate the dispatched run ID (waits up to 2 min for it to appear).
