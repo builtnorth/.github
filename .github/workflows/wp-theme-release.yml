@@ -17,7 +17,7 @@ on:
                 required: false
 
 concurrency:
-    group: release-${{ github.repository }}
+    group: release-${{ github.repository }}${{ inputs.version == 'ci-only' && '-ci-only' || '' }}
     cancel-in-progress: false
 
 jobs:
@@ -86,6 +86,11 @@ jobs:
               id: version
               run: |
                   VERSION="${{ inputs.version }}"
+                  # Pre-flight (ci-only): build at the version the theme already declares.
+                  if [ "$VERSION" = "ci-only" ]; then
+                    VERSION=$(sed -nE 's/^[[:space:]]*\*?[[:space:]]*Version:[[:space:]]*([^[:space:]]+).*/\1/p' style.css | head -1)
+                    echo "Pre-flight: building at the declared version $VERSION."
+                  fi
                   # Remove 'v' prefix if provided
                   VERSION="${VERSION#v}"
                   echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
@@ -184,6 +189,7 @@ jobs:
               run: bash _builtnorth-github/.github/scripts/pin-builtnorth-composer-deps.sh verify
 
             - name: Commit finalized manifests and lock
+              if: inputs.version != 'ci-only'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
@@ -336,6 +342,7 @@ jobs:
                   fi
 
             - name: Commit finalized release source
+              if: inputs.version != 'ci-only'
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
@@ -346,6 +353,7 @@ jobs:
                   fi
 
             - name: Create exact-source tag
+              if: inputs.version != 'ci-only'
               run: |
                   TAG="${{ steps.version.outputs.VERSION_TAG }}"
                   git fetch origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
@@ -370,6 +378,7 @@ jobs:
             # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
             # Contents: write on this repo causes gh release create to return HTTP 403.
             - name: Create Release with GitHub CLI
+              if: inputs.version != 'ci-only'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   # Passed as env, never pasted into the script: commit messages are
