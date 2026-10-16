@@ -88,7 +88,10 @@ jobs:
 
     build:
         needs: [preflight, ci]
-        if: needs.preflight.outputs.already_released != 'true' && inputs.version != 'ci-only'
+        # A pre-flight (version=ci-only) runs every WordPress.org prep check here
+        # (version and Stable tag, changelog, build, development files, Plugin
+        # Check, zip) and skips the commit, tag and release steps.
+        if: needs.preflight.outputs.already_released != 'true'
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -106,6 +109,11 @@ jobs:
               run: |
                   VERSION="${VERSION#v}"
                   PLUGIN_NAME="${GITHUB_REPOSITORY##*/}"
+                  # Pre-flight: check the plugin at the version it already declares.
+                  if [ "$VERSION" = "ci-only" ]; then
+                    VERSION=$(sed -nE 's/^[[:space:]]*\*?[[:space:]]*Version:[[:space:]]*([^[:space:]]+).*/\1/p' "$PLUGIN_NAME.php" | head -1)
+                    echo "Pre-flight: checking $PLUGIN_NAME at its declared version $VERSION."
+                  fi
                   echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
                   echo "VERSION_TAG=v$VERSION" >> "$GITHUB_OUTPUT"
                   echo "PLUGIN_NAME=$PLUGIN_NAME" >> "$GITHUB_OUTPUT"
@@ -279,6 +287,7 @@ jobs:
 
             # Only after every check has passed, so a failed release leaves no commit behind.
             - name: Commit version and changelog
+              if: inputs.version != 'ci-only'
               env:
                   VERSION_TAG: ${{ steps.version.outputs.VERSION_TAG }}
                   PLUGIN_FILE: ${{ steps.version.outputs.PLUGIN_NAME }}.php
@@ -292,6 +301,7 @@ jobs:
                   fi
 
             - name: Create exact-source tag
+              if: inputs.version != 'ci-only'
               env:
                   TAG: ${{ steps.version.outputs.VERSION_TAG }}
                   PLUGIN_NAME: ${{ steps.version.outputs.PLUGIN_NAME }}
@@ -315,6 +325,7 @@ jobs:
                   sha256sum "$PLUGIN_NAME.zip" > "$PLUGIN_NAME.zip.sha256"
 
             - name: Create Release with GitHub CLI
+              if: inputs.version != 'ci-only'
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   # Passed as env, never pasted into the script: commit messages are

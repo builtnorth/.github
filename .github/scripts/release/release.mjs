@@ -15,9 +15,10 @@ const TAG_INTERVAL_MS = 90_000;
 const COMPOSER_INDEX_TIMEOUT_MS = 10 * 60_000;
 
 // How long to wait for a single package's release workflow to complete.
-// Most releases finish in 3–8 min; 20 min is a hard ceiling before we stop
+// Composer packages finish in 3–8 min, but plugins with a full PHPUnit and E2E
+// matrix can pass 20 min (kitaris-seo did); 45 min is the ceiling before we stop
 // blocking the release train and surface the hang as an error.
-const RUN_TIMEOUT_MS = 20 * 60_000;
+const RUN_TIMEOUT_MS = 45 * 60_000;
 
 function readJson(file) {
 	return JSON.parse(fs.readFileSync(file, "utf8"));
