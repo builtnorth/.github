@@ -391,6 +391,8 @@ function parseFlags(args) {
 		preflight: false,
 		// --execute runs the pre-flight first unless this is set.
 		skipPreflight: false,
+		// Releases running at once; each still waits for its own dependencies.
+		concurrency: 6,
 	};
 	for (let index = 0; index < args.length; index += 1) {
 		const value = args[index];
@@ -407,6 +409,12 @@ function parseFlags(args) {
 		else if (value === "--execute") flags.execute = true;
 		else if (value === "--preflight") flags.preflight = true;
 		else if (value === "--skip-preflight") flags.skipPreflight = true;
+		else if (value === "--concurrency") {
+			flags.concurrency = Number.parseInt(args[++index], 10);
+			if (!Number.isInteger(flags.concurrency) || flags.concurrency < 1) {
+				throw new Error("--concurrency needs a positive whole number");
+			}
+		}
 		else throw new Error(`Unknown option: ${value}`);
 	}
 	if (!flags.targets.length) throw new Error("--targets is required");
@@ -771,7 +779,7 @@ async function preflightPlan(plan) {
 	return failed === 0;
 }
 
-async function executePlan(plan, { skipPreflight = false } = {}) {
+async function executePlan(plan, { skipPreflight = false, concurrency = 6 } = {}) {
 	if (plan.blockers.length) throw new Error("Release plan has dependency blockers.");
 	if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required for --execute");
 	if (!plan.releases.length) return;
@@ -782,87 +790,165 @@ async function executePlan(plan, { skipPreflight = false } = {}) {
 		path.dirname(plan.releases[0]?.node.absolutePath || process.cwd()),
 	);
 
-	for (const entry of plan.releases) {
-		const { node, version } = entry;
-		const tag = `v${version}`;
-		const existing = remoteTagCommit(node, tag);
-		if (existing) {
-			// A tag without its GitHub release is a run that failed after tagging.
-			// The release workflow's preflight refuses to retry over it, so stop
-			// with the fix rather than skip it silently or dispatch a doomed run.
-			let released = false;
+	await runInDependencyOrder(
+		plan.releases,
+		(entry) => releaseEntry(entry, composerIndex),
+		{ concurrency },
+	);
+}
+
+/**
+ * Run `task` for every entry, starting each one as soon as the entries it
+ * depends on (inside this plan) have finished, at most `concurrency` at a time.
+ *
+ * A failed entry skips everything that depends on it; unrelated entries keep
+ * going. Throws once everything has settled if any entry failed.
+ *
+ * @param {Array<{node: {slug: string, dependencies: Array<{node: {slug: string}}>}}>} entries
+ * @param {(entry: object) => Promise<void>} task
+ * @param {{concurrency?: number}} options
+ */
+export async function runInDependencyOrder(entries, task, { concurrency = 6 } = {}) {
+	const planned = new Map(entries.map((entry) => [entry.node.slug, entry]));
+	const done = new Map();
+	const failures = [];
+	let active = 0;
+	const waiting = [];
+
+	const acquire = async () => {
+		if (active < concurrency) {
+			active++;
+			return;
+		}
+		await new Promise((resolve) => waiting.push(resolve));
+		active++;
+	};
+	const release = () => {
+		active--;
+		const next = waiting.shift();
+		if (next) next();
+	};
+
+	const start = (entry) => {
+		const slug = entry.node.slug;
+		if (done.has(slug)) return done.get(slug);
+		const dependencies = [
+			...new Set(
+				entry.node.dependencies
+					.map((edge) => edge.node.slug)
+					.filter((dep) => dep !== slug && planned.has(dep)),
+			),
+		];
+		const promise = (async () => {
+			const results = await Promise.all(dependencies.map((dep) => start(planned.get(dep))));
+			if (results.some((ok) => !ok)) {
+				failures.push({ slug, error: new Error("skipped: a dependency failed") });
+				return false;
+			}
+			await acquire();
 			try {
-				run("gh", ["release", "view", tag, "--repo", node.repo, "--json", "tagName"]);
-				released = true;
-			} catch {
-				// No release for this tag.
+				await task(entry);
+				return true;
+			} catch (error) {
+				failures.push({ slug, error });
+				return false;
+			} finally {
+				release();
 			}
-			if (released) {
-				console.log(`Skipping ${node.slug}: ${tag} is already released.`);
-				continue;
-			}
-			throw new Error(
-				`${node.slug}: ${tag} exists but has no GitHub release (a run failed after tagging). ` +
-				`If nothing was published, delete the tag and re-run: ` +
-				`gh api -X DELETE repos/${node.repo}/git/refs/tags/${tag}`,
-			);
+		})();
+		done.set(slug, promise);
+		return promise;
+	};
+
+	await Promise.all(entries.map((entry) => start(entry)));
+
+	if (failures.length) {
+		const lines = failures.map(({ slug, error }) => `  ${slug}: ${error.message}`);
+		throw new Error(`${failures.length} release(s) did not complete:\n${lines.join("\n")}`);
+	}
+}
+
+/** Merge, push, dispatch and wait for one release. */
+async function releaseEntry(entry, composerIndex) {
+	const { node, version } = entry;
+	const tag = `v${version}`;
+	const existing = remoteTagCommit(node, tag);
+	if (existing) {
+		// A tag without its GitHub release is a run that failed after tagging.
+		// The release workflow's preflight refuses to retry over it, so stop
+		// with the fix rather than skip it silently or dispatch a doomed run.
+		let released = false;
+		try {
+			run("gh", ["release", "view", tag, "--repo", node.repo, "--json", "tagName"]);
+			released = true;
+		} catch {
+			// No release for this tag.
 		}
-
-		git(node.absolutePath, [
-			"fetch",
-			"origin",
-			node.developmentBranch,
-			node.releaseBranch,
-			"--tags",
-		]);
-		git(node.absolutePath, [
-			"checkout",
-			"-B",
-			node.developmentBranch,
-			`origin/${node.developmentBranch}`,
-		]);
-		git(node.absolutePath, [
-			"merge",
-			"--no-edit",
-			`origin/${node.releaseBranch}`,
-		]);
-		git(node.absolutePath, ["push", "origin", node.developmentBranch]);
-		git(node.absolutePath, [
-			"checkout",
-			"-B",
-			node.releaseBranch,
-			`origin/${node.releaseBranch}`,
-		]);
-		git(node.absolutePath, [
-			"merge",
-			"--ff-only",
-			node.developmentBranch,
-		]);
-		git(node.absolutePath, ["push", "origin", node.releaseBranch]);
-
-		await dispatchRelease(node, node.releaseBranch, version);
-
-		const dispatchedAt = Date.now();
-		console.log(`Dispatched ${node.slug} ${tag} — locating run...`);
-
-		// Locate the dispatched run ID (waits up to 2 min for it to appear).
-		const runId = await findRunId(node.repo, node.releaseBranch, dispatchedAt);
-		if (!runId) {
-			throw new Error(
-				`Could not locate the dispatched Actions run for ${node.slug} ${tag}. ` +
-				`Check ${node.repo} Actions manually.`,
-			);
+		if (released) {
+			console.log(`Skipping ${node.slug}: ${tag} is already released.`);
+			return;
 		}
+		throw new Error(
+			`${node.slug}: ${tag} exists but has no GitHub release (a run failed after tagging). ` +
+			`If nothing was published, delete the tag and re-run: ` +
+			`gh api -X DELETE repos/${node.repo}/git/refs/tags/${tag}`,
+		);
+	}
 
-		console.log(`  Tracking run ${runId} — waiting for completion...`);
-		await waitForRun(node.repo, runId);
+	git(node.absolutePath, [
+		"fetch",
+		"origin",
+		node.developmentBranch,
+		node.releaseBranch,
+		"--tags",
+	]);
+	git(node.absolutePath, [
+		"checkout",
+		"-B",
+		node.developmentBranch,
+		`origin/${node.developmentBranch}`,
+	]);
+	git(node.absolutePath, [
+		"merge",
+		"--no-edit",
+		`origin/${node.releaseBranch}`,
+	]);
+	git(node.absolutePath, ["push", "origin", node.developmentBranch]);
+	git(node.absolutePath, [
+		"checkout",
+		"-B",
+		node.releaseBranch,
+		`origin/${node.releaseBranch}`,
+	]);
+	git(node.absolutePath, [
+		"merge",
+		"--ff-only",
+		node.developmentBranch,
+	]);
+	git(node.absolutePath, ["push", "origin", node.releaseBranch]);
 
-		// Themes aren't in the private Composer index: nothing requires a theme through Composer.
-		// Neither are entries with "composerIndex": false, such as public WordPress.org plugins.
-		if (node.type !== "npm" && node.type !== "theme" && node.composerIndex !== false) {
-			console.log(`Waiting for ${composerPackageName(node)} ${version} in Composer...`);
-			await waitForComposerIndex(composerIndex, node, version);
-		}
+	await dispatchRelease(node, node.releaseBranch, version);
+
+	const dispatchedAt = Date.now();
+	console.log(`Dispatched ${node.slug} ${tag} — locating run...`);
+
+	// Locate the dispatched run ID (waits up to 2 min for it to appear).
+	const runId = await findRunId(node.repo, node.releaseBranch, dispatchedAt);
+	if (!runId) {
+		throw new Error(
+			`Could not locate the dispatched Actions run for ${node.slug} ${tag}. ` +
+			`Check ${node.repo} Actions manually.`,
+		);
+	}
+
+	console.log(`  Tracking run ${runId} — waiting for completion...`);
+	await waitForRun(node.repo, runId);
+
+	// Themes aren't in the private Composer index: nothing requires a theme through Composer.
+	// Neither are entries with "composerIndex": false, such as public WordPress.org plugins.
+	if (node.type !== "npm" && node.type !== "theme" && node.composerIndex !== false) {
+		console.log(`Waiting for ${composerPackageName(node)} ${version} in Composer...`);
+		await waitForComposerIndex(composerIndex, node, version);
 	}
 }
 
@@ -934,7 +1020,7 @@ async function main() {
 	if (plan.blockers.length) {
 		throw new Error("Release plan has dependency blockers.");
 	}
-	if (flags.execute) await executePlan(plan, { skipPreflight: flags.skipPreflight });
+	if (flags.execute) await executePlan(plan, { skipPreflight: flags.skipPreflight, concurrency: flags.concurrency });
 	else if (flags.preflight && !(await preflightPlan(plan))) process.exitCode = 1;
 }
 
