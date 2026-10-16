@@ -303,6 +303,24 @@ jobs:
                   COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
               run: composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 
+            # The verify step above reads the working tree, which passed even when the
+            # stamped version.php never reached the commit being tagged. Check the
+            # committed file: package-loader compares bundled copies by it.
+            - name: Verify committed version.php matches the release
+              if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
+              run: |
+                  EXPECTED="${{ steps.version.outputs.version_number }}"
+                  if ! git cat-file -e HEAD:version.php 2>/dev/null; then
+                    echo "No version.php in this package; nothing to verify."
+                    exit 0
+                  fi
+                  COMMITTED=$(git show HEAD:version.php | sed -nE "s/.*return[[:space:]]+'([^']+)'.*/\1/p" | head -1)
+                  if [ "$COMMITTED" != "$EXPECTED" ]; then
+                    echo "::error::Committed version.php says '${COMMITTED}' but this release is ${EXPECTED}. Refusing to tag."
+                    exit 1
+                  fi
+                  echo "Committed version.php matches ${EXPECTED}."
+
             - name: Create and push tag
               if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
               run: |
