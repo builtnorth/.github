@@ -223,7 +223,25 @@ jobs:
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
-                  git add -- '*.php' composer.json composer.lock package.json package-lock.json 2>/dev/null || true
+
+                  # Stamped PHP files are tracked: -u stages their changes only.
+                  # Then one file at a time: a single `git add` with a missing or
+                  # ignored path (no package-lock.json, a gitignored composer.lock)
+                  # stages nothing, which tagged every release with the old version.
+                  git add -u -- '*.php'
+                  for f in composer.json composer.lock package.json package-lock.json; do
+                    if [ -e "$f" ] && ! git check-ignore -q -- "$f"; then
+                      git add -- "$f"
+                    fi
+                  done
+
+                  # A stamped plugin file that did not get staged would tag stale source.
+                  PLUGIN_FILE="${{ steps.version.outputs.PLUGIN_NAME }}.php"
+                  if ! git diff --quiet -- "$PLUGIN_FILE"; then
+                    echo "::error::$PLUGIN_FILE was stamped but not staged."
+                    exit 1
+                  fi
+
                   if ! git diff --cached --quiet; then
                     git commit -m "chore: prepare ${{ steps.version.outputs.VERSION_TAG }} release"
                     git push origin HEAD:${{ github.ref_name }}
@@ -380,7 +398,11 @@ jobs:
               run: |
                   git config --local user.email "action@github.com"
                   git config --local user.name "GitHub Action"
-                  git add -- readme.txt CHANGELOG.md 2>/dev/null || true
+                  for f in readme.txt CHANGELOG.md; do
+                    if [ -e "$f" ] && ! git check-ignore -q -- "$f"; then
+                      git add -- "$f"
+                    fi
+                  done
                   if ! git diff --cached --quiet; then
                     git commit -m "docs: finalize ${{ steps.version.outputs.VERSION_TAG }} release files"
                     git push origin HEAD:${{ github.ref_name }}
