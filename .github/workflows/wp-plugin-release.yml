@@ -305,6 +305,11 @@ jobs:
                   [ -f "readme.txt" ] && cp readme.txt ${{ steps.version.outputs.PLUGIN_NAME }}/
                   [ -f "LICENSE" ] && cp LICENSE ${{ steps.version.outputs.PLUGIN_NAME }}/
 
+                  # The *.php glob above also catches dev tooling at the plugin root. The
+                  # wp-taint scanner bootstrap runs top-level code with no ABSPATH guard and
+                  # is only read by CI from the repo checkout, so it never ships.
+                  rm -f ${{ steps.version.outputs.PLUGIN_NAME }}/wp-taint-bootstrap.php
+
                   # Defensive: dist installs (--prefer-dist above) shouldn't leave
                   # vendor/*/.git behind, but strip it if present — a stray .git
                   # dir previously bloated releases past raw.githubusercontent.com's
@@ -317,6 +322,12 @@ jobs:
 
                   # Create the zip (src directory is not copied, so no need to exclude)
                   zip -r ${{ steps.version.outputs.PLUGIN_NAME }}.zip ${{ steps.version.outputs.PLUGIN_NAME }}/
+
+                  # Scanner tooling must never ship: fail rather than publish it.
+                  if unzip -Z1 ${{ steps.version.outputs.PLUGIN_NAME }}.zip | grep -E "^${{ steps.version.outputs.PLUGIN_NAME }}/wp-taint"; then
+                    echo "::error::The release zip contains wp-taint scanner files (listed above). Exclude them in the Create plugin zip step."
+                    exit 1
+                  fi
 
                   # Clean up
                   rm -rf ${{ steps.version.outputs.PLUGIN_NAME }}
