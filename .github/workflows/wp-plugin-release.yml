@@ -47,6 +47,16 @@ on:
                 required: false
                 type: string
                 default: ""
+            sign-release:
+                description: "Sign the release zip for siratik/license-manager updates (needs the release-signing environment and its RELEASE_SIGNING_KEY secret)"
+                required: false
+                type: boolean
+                default: false
+            signing-key-id:
+                description: "Id of the release signing key; must match the public key built into the plugins"
+                required: false
+                type: string
+                default: "releases-v1"
         secrets:
             ORG_REPO_TOKEN:
                 required: false
@@ -104,6 +114,9 @@ jobs:
         runs-on: ubuntu-latest
         permissions:
             contents: write
+        outputs:
+            # The sign job signs only a zip with this hash, never whatever is on the release.
+            zip_sha256: ${{ steps.tag.outputs.zip_sha256 }}
 
         steps:
             - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -409,6 +422,7 @@ jobs:
                   fi
 
             - name: Create exact-source tag
+              id: tag
               if: inputs.version != 'ci-only'
               run: |
                   TAG="${{ steps.version.outputs.VERSION_TAG }}"
@@ -429,6 +443,9 @@ jobs:
                     unzip -Z1 "${{ steps.version.outputs.PLUGIN_NAME }}.zip" | LC_ALL=C sort
                   } > "${{ steps.version.outputs.PLUGIN_NAME }}.manifest.txt"
                   sha256sum "${{ steps.version.outputs.PLUGIN_NAME }}.zip" > "${{ steps.version.outputs.PLUGIN_NAME }}.zip.sha256"
+                  ZIP_SHA256="$(cut -d' ' -f1 "${{ steps.version.outputs.PLUGIN_NAME }}.zip.sha256")"
+                  echo "zip_sha256=$ZIP_SHA256" >> "$GITHUB_OUTPUT"
+                  echo "Release zip SHA-256: $ZIP_SHA256 (the sign job signs only a zip with this hash)"
 
             # Use github.token here so release creation is not tied to ORG_REPO_TOKEN
             # (Composer/checkout still use that PAT for private builtnorth/* VCS). A PAT without
@@ -474,3 +491,70 @@ jobs:
                   gh api --method POST repos/builtnorth/registry/dispatches --input - <<EOF
                   {"event_type":"plugin-released","client_payload":{"plugin":"${{ steps.version.outputs.PLUGIN_NAME }}","version":"${{ steps.version.outputs.VERSION }}"}}
                   EOF
+
+    # Signs the published zip so siratik/license-manager installs it. A separate job so the
+    # signing key never shares a runner with composer install or the build. The
+    # release-signing environment (in the plugin repo) holds RELEASE_SIGNING_KEY as an
+    # environment secret (never a repo or org secret, which would skip the reviewer) and
+    # requires a reviewer: the job waits for that approval. It signs only a zip whose hash
+    # matches what the build job made, so a release asset swapped during the wait is
+    # refused. If approval is declined or anything fails, the release stays unsigned and
+    # sites show the update but don't install it.
+    sign:
+        needs: build
+        if: inputs.sign-release && inputs.version != 'ci-only'
+        runs-on: ubuntu-latest
+        environment: release-signing
+        permissions:
+            contents: write
+        env:
+            INPUT_VERSION: ${{ inputs.version }}
+            KEY_ID: ${{ inputs.signing-key-id }}
+            EXPECTED_SHA256: ${{ needs.build.outputs.zip_sha256 }}
+        steps:
+            - name: Checkout shared release scripts
+              uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+              with:
+                  repository: builtnorth/.github
+                  ref: main
+                  path: _builtnorth-github
+                  persist-credentials: false
+
+            # No setup action in this job: anything run here could read the token or put its
+            # own sha256sum/php on PATH. The runner's preinstalled PHP has sodium, and the
+            # script refuses to run without it.
+            - name: Download the published zip and check it is the one the build made
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  VERSION="${INPUT_VERSION#v}"
+                  NAME="${GITHUB_REPOSITORY##*/}"
+                  # Checked before anything reaches GITHUB_ENV: a newline here would set other variables.
+                  if ! [[ "$VERSION" =~ ^[0-9][0-9A-Za-z.-]*$ ]] || ! [[ "$NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+                    echo "::error::Unexpected version or repository name."
+                    exit 1
+                  fi
+                  if ! [[ "$EXPECTED_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+                    echo "::error::The build job did not report the zip's hash."
+                    exit 1
+                  fi
+                  gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "$NAME.zip"
+                  ACTUAL_SHA256="$(sha256sum "$NAME.zip" | cut -d' ' -f1)"
+                  echo "Zip SHA-256: $ACTUAL_SHA256 (build reported $EXPECTED_SHA256)"
+                  if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+                    echo "::error::The zip on the release is not the one the build job made. Not signing."
+                    exit 1
+                  fi
+                  echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+                  echo "NAME=$NAME" >> "$GITHUB_ENV"
+
+            - name: Sign the zip
+              env:
+                  RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+              run: php _builtnorth-github/.github/scripts/sign-release.php "$NAME.zip" "$NAME" "$VERSION" "$KEY_ID" > "$NAME.zip.sig"
+
+            # Ed25519 signatures are deterministic, so a re-run uploads the same file.
+            - name: Upload the signature
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: gh release upload "v$VERSION" "$NAME.zip.sig" --repo "$GITHUB_REPOSITORY" --clobber
