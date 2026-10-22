@@ -30,6 +30,11 @@ on:
                 required: false
                 type: string
                 default: '["6.7", "latest"]'
+            run-wp-taint:
+                description: "Run wp-taint in the pre-release CI gate (plugin must ship wp-taint.toml)"
+                required: false
+                type: boolean
+                default: false
         secrets:
             ORG_REPO_TOKEN:
                 required: false
@@ -83,6 +88,7 @@ jobs:
         with:
             php-versions: ${{ inputs.php-versions }}
             wordpress-versions: ${{ inputs.wordpress-versions }}
+            run-wp-taint: ${{ inputs.run-wp-taint }}
         secrets:
             ORG_REPO_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
 
