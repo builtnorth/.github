@@ -117,7 +117,6 @@
       "dependencies": [
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"]
       ]
     },
@@ -175,8 +174,7 @@
         ["kitaris-module-whitelabel", "build", "*"],
         ["charts", "npm", "^0.1.0"],
         ["charts", "build", "*"],
-        ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"]
+        ["wp-component-library", "npm", "^0.1.0"]
       ]
     },
     {
@@ -186,7 +184,6 @@
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"],
         ["wp-blocks", "build", "*"]
       ]
     },
@@ -198,7 +195,6 @@
         ["charts", "npm", "^0.1.0"],
         ["charts", "build", "*"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"],
         ["kitaris", "build", "*"]
       ]
     },
@@ -208,8 +204,7 @@
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
-        ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"]
+        ["wp-component-library", "npm", "^0.1.0"]
       ]
     },
     {
@@ -220,7 +215,6 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["wp-blocks", "npm", "^0.2.0"],
-        ["wp-component-library", "build", "*"],
         ["ui-kit", "build", "*"],
         ["wp-blocks", "build", "*"],
         ["kitaris", "build", "*"]
@@ -242,7 +236,6 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["ui-kit", "build", "*"],
-        ["wp-component-library", "build", "*"],
         ["kitaris", "build", "*"]
       ]
     },
@@ -255,7 +248,6 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["ui-kit", "build", "*"],
-        ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
         ["kitaris", "build", "*"]
       ]
@@ -266,8 +258,7 @@
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
-        ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"]
+        ["wp-component-library", "npm", "^0.1.0"]
       ]
     },
     {
@@ -278,8 +269,7 @@
         ["charts", "npm", "^0.1.0"],
         ["charts", "build", "*"],
         ["kitaris", "build", "*"],
-        ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"]
+        ["wp-component-library", "npm", "^0.1.0"]
       ]
     },
     {
@@ -290,7 +280,6 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["ui-kit", "build", "*"],
-        ["wp-component-library", "build", "*"],
         ["kitaris", "build", "*"]
       ]
     },
@@ -310,7 +299,6 @@
         ["structured-data", "composer", "^0.1"],
         ["charts", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"],
         ["charts", "build", "*"],
         ["kitaris", "build", "*"],
         ["wp-blocks", "build", "*"]
