@@ -510,10 +510,12 @@ jobs:
     # requires a reviewer: the job waits for that approval. It signs only a zip whose hash
     # matches what the build job made, so a release asset swapped during the wait is
     # refused. If approval is declined or anything fails, the release stays unsigned and
-    # sites show the update but don't install it.
+    # sites show the update but don't install it. Only a release dispatched from main is
+    # signed (release.mjs dispatches plugins there): code on any other branch never gets a
+    # signature, whatever the environment's settings.
     sign:
         needs: build
-        if: inputs.sign-release && inputs.version != 'ci-only'
+        if: inputs.sign-release && inputs.version != 'ci-only' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         environment: release-signing
         permissions:
