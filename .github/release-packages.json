@@ -188,6 +188,16 @@
       ]
     },
     {
+      "slug": "kitaris-add-on-media",
+      "type": "plugin",
+      "dependencies": [
+        ["kitaris", "composer", "^0.1"],
+        ["kitaris", "build", "*"],
+        ["wp-component-library", "npm", "^0.1.0"],
+        ["wp-component-library", "build", "*"]
+      ]
+    },
+    {
       "slug": "kitaris-analytics",
       "type": "plugin",
       "dependencies": [
