@@ -22,7 +22,7 @@ on:
         description: 'Node version to use for build'
         required: false
         type: string
-        default: '22'
+        default: '24'
       publish-to-npm:
         description: 'Publish to npm registry'
         required: false

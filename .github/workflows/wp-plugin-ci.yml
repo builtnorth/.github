@@ -23,7 +23,7 @@ on:
         required: false
         type: string
         # npm 10.8 (Node 20) crashes resolving the @wordpress/scripts peer tree.
-        default: '22'
+        default: '24'
       run-phpcs:
         description: 'Run PHP CodeSniffer'
         required: false
