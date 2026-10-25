@@ -235,6 +235,9 @@ export function buildPlan({
 	targetSlugs = null,
 	targetVersion = null,
 	force = false,
+	// The caller production-built every planned package and committed any build/
+	// that changed (`make release`), so committed assets are known current.
+	prebuilt = false,
 }) {
 	const requestedSlugs = (targetSlugs || [targetSlug])
 		.filter(Boolean)
@@ -357,6 +360,7 @@ export function buildPlan({
 			}
 
 			if (
+				!prebuilt &&
 				edge.kind === "build" &&
 				dependencyEntry &&
 				stateFor(edge.node).buildChanged &&
@@ -487,6 +491,7 @@ function parseFlags(args) {
 		),
 		version: null,
 		force: false,
+		prebuilt: false,
 		execute: false,
 		// Releases running at once; each still waits for its own dependencies.
 		concurrency: 6,
@@ -503,6 +508,7 @@ function parseFlags(args) {
 		else if (value === "--workspace") flags.workspace = path.resolve(args[++index]);
 		else if (value === "--version") flags.version = args[++index].replace(/^v/, "");
 		else if (value === "--force") flags.force = true;
+		else if (value === "--prebuilt") flags.prebuilt = true;
 		else if (value === "--execute") flags.execute = true;
 		else if (value === "--list") flags.list = true;
 		else if (value === "--concurrency") {
@@ -1022,6 +1028,7 @@ async function main() {
 		targetSlugs: flags.targets,
 		targetVersion: flags.version,
 		force: flags.force,
+		prebuilt: flags.prebuilt,
 	});
 	// Just the planned slugs on stdout, blockers or not: `make release` prebuilds them.
 	if (flags.list) {
