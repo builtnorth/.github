@@ -321,8 +321,7 @@
         ["charts", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["charts", "build", "*"],
-        ["kitaris", "build", "*"],
-        ["wp-blocks", "build", "*"]
+        ["kitaris", "build", "*"]
       ]
     },
     {
