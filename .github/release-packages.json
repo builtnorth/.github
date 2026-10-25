@@ -79,6 +79,7 @@
       "type": "composer",
       "dependencies": [
         ["atomic-store", "composer", "^0.1"],
+        ["cryptography", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"]
       ]
     },
