@@ -320,6 +320,15 @@ jobs:
                   # vendor/ included: bundled packages (the framework's build/) ship them too.
                   find ${{ steps.version.outputs.PLUGIN_NAME }} -type f -name "*.map" -delete 2>/dev/null || true
 
+                  # Third-party packages without export-ignore ship their test suites, and
+                  # vendor/ sits in the webroot. Nothing is autoloaded from these paths.
+                  # cssmin's gui/ is a standalone PHP page and cssmin is its CLI script.
+                  if [ -d ${{ steps.version.outputs.PLUGIN_NAME }}/vendor ]; then
+                    find ${{ steps.version.outputs.PLUGIN_NAME }}/vendor -mindepth 2 -type d \( -name tests -o -name test -o -name __tests__ \) -prune -print -exec rm -rf {} +
+                    find ${{ steps.version.outputs.PLUGIN_NAME }}/vendor -mindepth 2 -type f \( -name 'phpunit.xml*' -o -name '*.test.js' \) -print -delete
+                    rm -rf ${{ steps.version.outputs.PLUGIN_NAME }}/vendor/tubalmartin/cssmin/gui ${{ steps.version.outputs.PLUGIN_NAME }}/vendor/tubalmartin/cssmin/cssmin
+                  fi
+
                   # Create the zip (src directory is not copied, so no need to exclude)
                   zip -r ${{ steps.version.outputs.PLUGIN_NAME }}.zip ${{ steps.version.outputs.PLUGIN_NAME }}/
 
