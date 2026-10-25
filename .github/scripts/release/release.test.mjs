@@ -152,7 +152,7 @@ test("catalog provides the release graph without Basecamp paths", () => {
 	);
 });
 
-test("dependents are never added implicitly", () => {
+test("plugins that bundle a package released in the run release with it, even through other packages", () => {
 	const utility = packageNode("wp-utility");
 	const kitaris = packageNode("kitaris");
 	const plugin = packageNode("kitaris-seo", { deployable: true });
@@ -164,15 +164,113 @@ test("dependents are never added implicitly", () => {
 		states: {
 			"wp-utility": state("2.4.0", { changed: true }),
 			kitaris: state("2.4.0"),
-			"kitaris-seo": state("1.4.9"),
+			"kitaris-seo": { ...state("1.4.9"), shipped: { "builtnorth/wp-utility": "2.4.0" } },
 		},
 		targetSlug: "wp-utility",
 	});
 
+	// The library in between doesn't bundle anything, so it doesn't release.
 	assert.deepEqual(
 		plan.releases.map((entry) => entry.node.slug),
-		["wp-utility"],
+		["wp-utility", "kitaris-seo"],
 	);
+	assert.equal(plan.releases[1].version, "1.4.10");
+	assert.match(plan.releases[1].reason, /builtnorth\/wp-utility 2\.4\.0 → 2\.4\.1 \(this run\)/);
+	assert.deepEqual(plan.blockers, []);
+});
+
+test("a requested plugin that shipped an older package than is released releases again", () => {
+	const kitaris = packageNode("kitaris");
+	const stale = packageNode("kitaris-forms", { deployable: true });
+	const current = packageNode("kitaris-seo", { deployable: true });
+	connect(stale, kitaris, "^0.1");
+	connect(current, kitaris, "^0.1");
+
+	const plan = buildPlan({
+		nodes: [kitaris, stale, current],
+		states: {
+			kitaris: { ...state("0.1.9"), composerName: "kitaris/framework" },
+			"kitaris-forms": { ...state("0.6.4"), shipped: { "kitaris/framework": "0.1.8" } },
+			"kitaris-seo": { ...state("0.7.3"), shipped: { "kitaris/framework": "0.1.9" } },
+		},
+		targetSlugs: ["kitaris", "kitaris-forms", "kitaris-seo"],
+	});
+
+	assert.deepEqual(
+		plan.releases.map((entry) => entry.node.slug),
+		["kitaris-forms"],
+	);
+	assert.equal(plan.releases[0].reason, "dependency update: kitaris/framework 0.1.8 → 0.1.9");
+});
+
+test("without a committed lock, a package released after the plugin marks it behind", () => {
+	const kitaris = packageNode("kitaris");
+	const behind = packageNode("kitaris-performance", { deployable: true });
+	const current = packageNode("compass-waas", { deployable: true });
+	connect(behind, kitaris, "^0.1");
+	connect(current, kitaris, "^0.1");
+
+	const plan = buildPlan({
+		nodes: [kitaris, behind, current],
+		states: {
+			kitaris: { ...state("0.1.9"), releasedAt: 200 },
+			"kitaris-performance": { ...state("0.3.3"), shipped: {}, releasedAt: 100 },
+			"compass-waas": { ...state("0.1.1"), shipped: {}, releasedAt: 300 },
+		},
+		targetSlugs: ["kitaris", "kitaris-performance", "compass-waas"],
+	});
+
+	assert.deepEqual(
+		plan.releases.map((entry) => entry.node.slug),
+		["kitaris-performance"],
+	);
+	assert.match(plan.releases[0].reason, /builtnorth\/kitaris 0\.1\.9 \(released after/);
+});
+
+test("a plugin that is behind is left alone when a run doesn't ask for it", () => {
+	const kitaris = packageNode("kitaris");
+	const plugin = packageNode("kitaris-forms", { deployable: true });
+	const other = packageNode("other", { deployable: true });
+	connect(plugin, kitaris, "^0.1");
+
+	const plan = buildPlan({
+		nodes: [kitaris, plugin, other],
+		states: {
+			kitaris: state("0.1.9"),
+			"kitaris-forms": { ...state("0.6.4"), shipped: { "builtnorth/kitaris": "0.1.8" } },
+			other: state("1.0.0", { changed: true }),
+		},
+		targetSlug: "other",
+	});
+
+	assert.deepEqual(
+		plan.releases.map((entry) => entry.node.slug),
+		["other"],
+	);
+});
+
+test("a plugin releases after the unreleased packages it bundles", () => {
+	const dispatcher = packageNode("job-dispatcher");
+	const kitaris = packageNode("kitaris");
+	const plugin = packageNode("kitaris-forms", { deployable: true });
+	connect(kitaris, dispatcher, "^0.1");
+	connect(plugin, kitaris, "^0.1");
+
+	const plan = buildPlan({
+		nodes: [dispatcher, kitaris, plugin],
+		states: {
+			"job-dispatcher": state("0.1.4", { changed: true }),
+			kitaris: state("0.1.9"),
+			"kitaris-forms": state("0.6.4", { changed: true }),
+		},
+		targetSlug: "kitaris-forms",
+	});
+
+	assert.deepEqual(
+		plan.releases.map((entry) => entry.node.slug),
+		["job-dispatcher", "kitaris-forms"],
+	);
+	assert.match(plan.releases[0].reason, /bundled by kitaris-forms/);
 });
 
 test("a Kitaris major release requires explicit deployable migrations", () => {
@@ -286,6 +384,44 @@ test("a package's first release is 0.1.0, then it bumps from its tag", () => {
 	}
 });
 
+test("state reads the Composer name and the versions the last tag shipped", () => {
+	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "shipped-"));
+	const git = (...args) => execFileSync("git", ["-C", dir, ...args], { stdio: "pipe" });
+	try {
+		git("init", "-q", "-b", "dev");
+		fs.writeFileSync(path.join(dir, "composer.json"), JSON.stringify({ name: "kitaris/forms" }));
+		fs.writeFileSync(
+			path.join(dir, "composer.lock"),
+			JSON.stringify({ packages: [{ name: "kitaris/framework", version: "v0.1.8" }] }),
+		);
+		git("add", "composer.json", "composer.lock");
+		git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "fix: first");
+		git("tag", "v0.6.4");
+
+		const plugin = readRepositoryState({ absolutePath: dir, developmentBranch: "dev", deployable: true });
+		assert.equal(plugin.composerName, "kitaris/forms");
+		assert.deepEqual(plugin.shipped, { "kitaris/framework": "0.1.8" });
+
+		const library = readRepositoryState({ absolutePath: dir, developmentBranch: "dev" });
+		assert.deepEqual(library.shipped, {});
+
+		// A version stamp alone is not a build change; any other package.json edit is.
+		const commit = (file, content) => {
+			fs.writeFileSync(path.join(dir, file), content);
+			git("add", file);
+			git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "chore: edit");
+		};
+		commit("package.json", '{\n\t"name": "x",\n\t"version": "0.6.4"\n}\n');
+		git("tag", "v0.6.5");
+		commit("package.json", '{\n\t"name": "x",\n\t"version": "0.6.3"\n}\n');
+		assert.equal(readRepositoryState({ absolutePath: dir, developmentBranch: "dev" }).buildChanged, false);
+		commit("package.json", '{\n\t"name": "y",\n\t"version": "0.6.3"\n}\n');
+		assert.equal(readRepositoryState({ absolutePath: dir, developmentBranch: "dev" }).buildChanged, true);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 // runInDependencyOrder: dependencies first, independent work in parallel.
 {
 	const { runInDependencyOrder } = await import("./release.mjs");
@@ -307,6 +443,25 @@ test("a package's first release is 0.1.0, then it bumps from its tag", () => {
 		assert.deepEqual(started.a, []);
 		assert.ok(started.b.includes("a") && started.c.includes("a"));
 		assert.ok(started.d.includes("b") && started.d.includes("c"));
+	});
+
+	test("runInDependencyOrder waits on planned packages it reaches only through others", async () => {
+		// forms -> kitaris (not planned) -> job-dispatcher (planned)
+		const dispatcher = { slug: "job-dispatcher", dependencies: [] };
+		const kitaris = { slug: "kitaris", dependencies: [{ node: dispatcher }] };
+		const forms = { slug: "kitaris-forms", dependencies: [{ node: kitaris }] };
+		const finished = [];
+		const started = {};
+		await runInDependencyOrder(
+			[{ node: dispatcher }, { node: forms }],
+			async ({ node }) => {
+				started[node.slug] = [...finished];
+				await tick();
+				finished.push(node.slug);
+			},
+			{ concurrency: 4 },
+		);
+		assert.deepEqual(started["kitaris-forms"], ["job-dispatcher"]);
 	});
 
 	test("runInDependencyOrder runs independent entries at once, up to the cap", async () => {
