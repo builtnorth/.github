@@ -328,8 +328,6 @@
     {
       "slug": "compass-waas",
       "type": "theme",
-      "releaseBranch": "dev",
-      "releasable": false,
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
         ["theme-skin-switcher", "composer", "*"]
