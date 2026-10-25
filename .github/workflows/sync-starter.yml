@@ -1,0 +1,117 @@
+name: Sync Starter
+
+# Rebuilds builtnorth/basecamp (the project starter) from basecamp-dev's starter/
+# folder. Manual only. basecamp is generated: never edit it directly.
+#
+# 1. Build the starter tree with basecamp-dev's bin/build-starter.mjs.
+# 2. Smoke test a copy the way setup-bn-project would use it: Composer install
+#    from the private registry, Compass (main) as the theme, npm install + build.
+# 3. Unless dry run: commit the tree on top of basecamp's history and push.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "basecamp-dev branch or commit to build from"
+        required: false
+        type: string
+        default: "dev"
+      dry_run:
+        description: "Build and smoke test only; do not push to basecamp"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: builtnorth-sync-starter
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+      GIT_AUTHOR_NAME: Dan Northern
+      GIT_AUTHOR_EMAIL: git@dannorthern.com
+      GIT_COMMITTER_NAME: Dan Northern
+      GIT_COMMITTER_EMAIL: git@dannorthern.com
+
+    steps:
+      - name: Require cross-repository token
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::ORG_REPO_TOKEN is required."
+            exit 1
+          fi
+
+      - name: Checkout basecamp-dev
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/basecamp-dev
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.ORG_REPO_TOKEN }}
+          path: source
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      - name: Build starter tree
+        run: node source/bin/build-starter.mjs "$RUNNER_TEMP/starter"
+
+      - name: Configure repository authentication
+        run: gh auth setup-git
+
+      # Kitaris plugins are private release zips: the same global Composer plugin
+      # setup-bn-project installs in Lando downloads them.
+      - name: Smoke test - Composer install
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+        run: |
+          cp -a "$RUNNER_TEMP/starter" "$RUNNER_TEMP/smoke"
+          composer global config repositories.builtnorth composer https://raw.githubusercontent.com/builtnorth/registry/main
+          composer global config allow-plugins.builtnorth/composer-github-releases true
+          composer global require --no-interaction builtnorth/composer-github-releases
+          cd "$RUNNER_TEMP/smoke"
+          composer install --no-interaction --no-progress
+          for plugin in analytics backup blocks dashboard forms performance security seo; do
+            test -f "wp-content/plugins/kitaris-$plugin/kitaris-$plugin.php" || { echo "::error::kitaris-$plugin did not install"; exit 1; }
+          done
+
+      - name: Smoke test - theme build
+        run: |
+          cd "$RUNNER_TEMP/smoke"
+          git clone --depth 1 --branch main https://github.com/builtnorth/compass.git wp-content/themes/compass
+          rm -rf wp-content/themes/compass/.git
+          npm install --no-audit --no-fund
+          npm run build
+          test -d wp-content/themes/compass/build/assets || { echo "::error::Compass build/ is missing"; exit 1; }
+
+      - name: Publish to basecamp
+        if: ${{ !inputs.dry_run }}
+        run: |
+          source_sha=$(git -C source rev-parse --short HEAD)
+          git clone https://github.com/builtnorth/basecamp.git "$RUNNER_TEMP/basecamp"
+          rsync -a --delete --exclude .git "$RUNNER_TEMP/starter/" "$RUNNER_TEMP/basecamp/"
+          cd "$RUNNER_TEMP/basecamp"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "basecamp already matches basecamp-dev $source_sha."
+            exit 0
+          fi
+          git diff --cached --stat
+          git commit -q -m "chore: sync from basecamp-dev $source_sha"
+          git push origin HEAD:main
+
+      - name: Show the starter diff (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          git clone --depth 1 https://github.com/builtnorth/basecamp.git "$RUNNER_TEMP/basecamp"
+          diff -rq --exclude .git "$RUNNER_TEMP/basecamp" "$RUNNER_TEMP/starter" || true
