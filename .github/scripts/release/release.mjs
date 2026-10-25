@@ -387,10 +387,6 @@ function parseFlags(args) {
 		version: null,
 		force: false,
 		execute: false,
-		// Run every target's release CI in parallel (version=ci-only) and stop.
-		preflight: false,
-		// --execute runs the pre-flight first unless this is set.
-		skipPreflight: false,
 		// Releases running at once; each still waits for its own dependencies.
 		concurrency: 6,
 	};
@@ -407,8 +403,6 @@ function parseFlags(args) {
 		else if (value === "--version") flags.version = args[++index].replace(/^v/, "");
 		else if (value === "--force") flags.force = true;
 		else if (value === "--execute") flags.execute = true;
-		else if (value === "--preflight") flags.preflight = true;
-		else if (value === "--skip-preflight") flags.skipPreflight = true;
 		else if (value === "--concurrency") {
 			flags.concurrency = Number.parseInt(args[++index], 10);
 			if (!Number.isInteger(flags.concurrency) || flags.concurrency < 1) {
@@ -675,118 +669,10 @@ async function dispatchRelease(node, ref, version) {
 	}
 }
 
-/**
- * Packages call the shared release workflows at @main. Until those skip their
- * shipping jobs for version=ci-only, a ci-only dispatch would run a real build
- * and release named "vci-only", so refuse to dispatch.
- */
-const CI_ONLY_WORKFLOWS = [
-	"wp-plugin-release.yml",
-	"wp-org-plugin-release.yml",
-	"composer-package-release.yml",
-	"npm-package-release.yml",
-];
-function assertSharedWorkflowsSupportCiOnly() {
-	for (const file of CI_ONLY_WORKFLOWS) {
-		const encoded = run("gh", [
-			"api",
-			`repos/builtnorth/.github/contents/.github/workflows/${file}?ref=main`,
-			"--jq",
-			".content",
-		]);
-		const text = Buffer.from(encoded.replace(/\s/g, ""), "base64").toString("utf8");
-		if (!text.includes("inputs.version != 'ci-only'")) {
-			throw new Error(
-				`builtnorth/.github main: ${file} has no ci-only guard yet, so a pre-flight ` +
-				`dispatch would run a real release. Merge the shared-workflow change first.`,
-			);
-		}
-	}
-}
-
-/** Names of a run's failed jobs, for the pre-flight summary. */
-function failedJobs(repo, runId) {
-	try {
-		return run("gh", [
-			"api",
-			`repos/${repo}/actions/runs/${runId}/jobs?per_page=100`,
-			"--jq",
-			'.jobs[] | select(.conclusion == "failure") | .name',
-		])
-			.split("\n")
-			.filter(Boolean);
-	} catch {
-		return [];
-	}
-}
-
-/**
- * Pre-flight: run every target's release CI at once, before anything ships.
- *
- * Each target's own release.yml is dispatched on its development branch with
- * version=ci-only. The shared release workflows run their ci job exactly as a
- * release would (same CI workflow, inputs and full matrix) and skip every job
- * that merges, tags, builds or publishes. Nothing is pushed.
- *
- * Each package is tested against its dependencies' released versions. A target
- * whose dependency is released earlier in the same plan is tested against the
- * dependency's current release, so the summary flags it.
- *
- * Returns true when every run passed.
- */
-async function preflightPlan(plan) {
-	if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required for --preflight");
-	if (!plan.releases.length) return true;
-	assertSharedWorkflowsSupportCiOnly();
-
-	const planned = new Set(plan.releases.map((entry) => entry.node.slug));
-	const runs = [];
-	for (const { node } of plan.releases) {
-		const ref = node.developmentBranch;
-		const dispatchedAt = Date.now();
-		await dispatchRelease(node, ref, "ci-only");
-		runs.push({ node, ref, dispatchedAt });
-		console.log(`Pre-flight dispatched ${node.slug} (${ref})`);
-	}
-
-	const results = await Promise.all(
-		runs.map(async ({ node, ref, dispatchedAt }) => {
-			const runId = await findRunId(node.repo, ref, dispatchedAt);
-			if (!runId) return { node, ok: false, url: null, jobs: ["run not found"] };
-			const url = `https://github.com/${node.repo}/actions/runs/${runId}`;
-			try {
-				await waitForRun(node.repo, runId);
-				return { node, ok: true, url, jobs: [] };
-			} catch (error) {
-				if (!error.message.startsWith("GitHub Actions run")) assertNotRateLimited(error);
-				return { node, ok: false, url, jobs: failedJobs(node.repo, runId) };
-			}
-		}),
-	);
-
-	console.log("\nPre-flight results:");
-	for (const { node, ok, url, jobs } of results) {
-		const pending = node.dependencies
-			.filter((edge) => planned.has(edge.node.slug))
-			.map((edge) => edge.node.slug);
-		const note = pending.length
-			? ` (tested against the current release of ${[...new Set(pending)].join(", ")}, which this plan updates first)`
-			: "";
-		console.log(`  ${ok ? "pass" : "FAIL"}  ${node.slug}  ${url || ""}${note}`);
-		for (const job of jobs) console.log(`          - ${job}`);
-	}
-	const failed = results.filter((result) => !result.ok).length;
-	console.log(failed ? `\n${failed} of ${results.length} failed; nothing was released.` : "\nAll passed.");
-	return failed === 0;
-}
-
-async function executePlan(plan, { skipPreflight = false, concurrency = 6 } = {}) {
+async function executePlan(plan, { concurrency = 6 } = {}) {
 	if (plan.blockers.length) throw new Error("Release plan has dependency blockers.");
 	if (!process.env.GH_TOKEN) throw new Error("GH_TOKEN is required for --execute");
 	if (!plan.releases.length) return;
-	if (!skipPreflight && !(await preflightPlan(plan))) {
-		throw new Error("Pre-flight failed; fix the failures above, or pass --skip-preflight.");
-	}
 	const composerIndex = prepareComposerIndex(
 		path.dirname(plan.releases[0]?.node.absolutePath || process.cwd()),
 	);
@@ -1022,8 +908,7 @@ async function main() {
 	if (plan.blockers.length) {
 		throw new Error("Release plan has dependency blockers.");
 	}
-	if (flags.execute) await executePlan(plan, { skipPreflight: flags.skipPreflight, concurrency: flags.concurrency });
-	else if (flags.preflight && !(await preflightPlan(plan))) process.exitCode = 1;
+	if (flags.execute) await executePlan(plan, { concurrency: flags.concurrency });
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
