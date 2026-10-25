@@ -66,9 +66,11 @@ jobs:
 
       # Kitaris plugins are private release zips: the same global Composer plugin
       # setup-bn-project installs in Lando downloads them.
+      # ORG_REPO_TOKEN for both hosts: github.com (release zips) and
+      # raw.githubusercontent.com (the private registry's packages.json).
       - name: Smoke test - Composer install
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"},"http-basic":{"raw.githubusercontent.com":{"username":"x-access-token","password":"${{ secrets.ORG_REPO_TOKEN }}"}}}'
         run: |
           cp -a "$RUNNER_TEMP/starter" "$RUNNER_TEMP/smoke"
           composer global config repositories.builtnorth composer https://raw.githubusercontent.com/builtnorth/registry/main
