@@ -394,9 +394,10 @@ jobs:
       - name: Run security check for PHP dependencies
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: |
-          composer require --dev roave/security-advisories:dev-latest
-          composer audit --abandoned=report
+        # composer audit checks every locked package against the advisory
+        # database. roave/security-advisories is not installed: it now
+        # conflicts with every PHP 8.1 release, so it cannot resolve on 8.1.
+        run: composer audit --abandoned=report
 
   wp-taint:
     if: inputs.run-wp-taint
