@@ -16,7 +16,11 @@
       "type": "composer",
       "dependencies": [["package-loader", "composer", "^0.1"]]
     },
-    { "slug": "utility", "type": "composer" },
+    {
+      "slug": "utility",
+      "type": "composer",
+      "dependencies": [["package-loader", "composer", "^0.1"]]
+    },
     {
       "slug": "structured-data",
       "type": "composer",
@@ -58,7 +62,8 @@
       "dependencies": [
         ["rest-access", "composer", "^0.1"],
         ["package-loader", "composer", "^0.1"],
-        ["cryptography", "composer", "^0.1.1"]
+        ["cryptography", "composer", "^0.1.1"],
+        ["job-dispatcher", "composer", "^0.1"]
       ]
     },
     {
@@ -146,7 +151,8 @@
       "type": "composer",
       "dependencies": [
         ["package-loader", "composer", "^0.1"],
-        ["rest-access", "composer", "^0.1"]
+        ["rest-access", "composer", "^0.1"],
+        ["utility", "composer", "^0.1"]
       ]
     },
     {
