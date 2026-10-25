@@ -314,6 +314,19 @@ test("build-time consumers require committed rebuilt assets", () => {
 		["charts", "kitaris-seo"],
 	);
 	assert.match(plan.blockers[0], /rebuild and commit/);
+
+	// After `make release` prebuilt everything, an unchanged build/ is current, not stale.
+	const prebuilt = buildPlan({
+		nodes: [charts, plugin],
+		states: {
+			charts: state("1.3.0", { changed: true, buildChanged: true }),
+			"kitaris-seo": state("1.4.9"),
+		},
+		targetSlugs: ["charts", "kitaris-seo"],
+		force: true,
+		prebuilt: true,
+	});
+	assert.deepEqual(prebuilt.blockers, []);
 });
 
 test("a release edge orders the dependent after it without constraints or rebuilds", () => {
