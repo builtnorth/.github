@@ -253,7 +253,8 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["ui-kit", "build", "*"],
-        ["kitaris", "build", "*"]
+        ["kitaris", "build", "*"],
+        ["kitaris-forms", "release", "*"]
       ]
     },
     {
@@ -297,7 +298,8 @@
         ["ui-kit", "npm", "^0.1.0"],
         ["wp-component-library", "npm", "^0.1.0"],
         ["ui-kit", "build", "*"],
-        ["kitaris", "build", "*"]
+        ["kitaris", "build", "*"],
+        ["kitaris-forms", "release", "*"]
       ]
     },
     {

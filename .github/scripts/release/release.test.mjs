@@ -218,6 +218,28 @@ test("build-time consumers require committed rebuilt assets", () => {
 	assert.match(plan.blockers[0], /rebuild and commit/);
 });
 
+test("a release edge orders the dependent after it without constraints or rebuilds", () => {
+	const forms = packageNode("kitaris-forms", { deployable: true });
+	const directory = packageNode("kitaris-directory", { deployable: true });
+	connect(directory, forms, "*", "release");
+
+	const plan = buildPlan({
+		nodes: [forms, directory],
+		states: {
+			"kitaris-forms": state("0.6.3", { changed: true, buildChanged: true }),
+			"kitaris-directory": state("0.4.2"),
+		},
+		targetSlugs: ["kitaris-directory", "kitaris-forms"],
+		force: true,
+	});
+
+	assert.deepEqual(
+		plan.releases.map((entry) => entry.node.slug),
+		["kitaris-forms", "kitaris-directory"],
+	);
+	assert.deepEqual(plan.blockers, []);
+});
+
 test("orchestrator does not contain Actions run polling commands", () => {
 	const script = fs.readFileSync(
 		path.join(path.dirname(fileURLToPath(import.meta.url)), "release.mjs"),

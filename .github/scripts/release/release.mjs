@@ -165,7 +165,9 @@ export function loadGraph(catalogFile = DEFAULT_CATALOG) {
 			if (!dependency) {
 				throw new Error(`${node.slug} references unknown dependency ${slug}`);
 			}
-			if (!["composer", "npm", "build"].includes(kind)) {
+			// "release": no import, but the dependent's CI needs the dependency's
+			// published release (e.g. wp-plugin-ci extra-plugins downloads its zip).
+			if (!["composer", "npm", "build", "release"].includes(kind)) {
 				throw new Error(`${node.slug} has unknown dependency kind ${kind}`);
 			}
 			addEdge(node, dependency, kind, constraint);
@@ -195,7 +197,7 @@ export function assertAcyclic(nodes) {
 }
 
 function dependencyCanUse(edge, dependencyVersion) {
-	if (edge.kind === "build") return true;
+	if (edge.kind === "build" || edge.kind === "release") return true;
 	return constraintAllows(edge.constraint, dependencyVersion);
 }
 
