@@ -115,7 +115,7 @@ test("catalog provides the release graph without Basecamp paths", () => {
 	const dispatcher = graph.nodes.find(
 		(node) => node.slug === "job-dispatcher",
 	);
-	assert.equal(graph.nodes.length, 44);
+	assert.equal(graph.nodes.length, 46);
 	assert.deepEqual(
 		dispatcher.dependencies.map((edge) => edge.node.slug).sort(),
 		["instant-actions", "package-loader"],

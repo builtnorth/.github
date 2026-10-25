@@ -264,7 +264,8 @@ jobs:
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
             cd workspace-root/npm_packages/${{ env.PACKAGE_NAME }}
           fi
-          npm run ${{ inputs.build-command }}
+          # Packages that ship source have no build script.
+          npm run ${{ inputs.build-command }} --if-present
 
       - name: Check for uncommitted changes
         run: |
