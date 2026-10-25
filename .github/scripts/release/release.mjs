@@ -869,6 +869,35 @@ export async function runInDependencyOrder(entries, task, { concurrency = 6 } = 
 }
 
 /** Merge, push, dispatch and wait for one release. */
+export function firstPartyNpmNames(pkg) {
+	const all = {
+		...pkg?.dependencies,
+		...pkg?.devDependencies,
+		...pkg?.peerDependencies,
+		...pkg?.optionalDependencies,
+	};
+	return Object.keys(all).filter((name) => /^@(?:siratik|kitaris|builtnorth)\//.test(name));
+}
+
+/**
+ * Release workflows install package-lock.json exactly as committed, so a lock
+ * still pinning @siratik/ui-kit 0.1.1 builds against 0.1.1 even after 0.1.2 is
+ * out. Move first-party packages to the newest version their range allows and
+ * commit the lock. Dependencies in this plan finished publishing before this runs.
+ */
+function refreshFirstPartyNpm(node) {
+	const cwd = node.absolutePath;
+	if (!fs.existsSync(path.join(cwd, "package-lock.json"))) return;
+	const names = firstPartyNpmNames(readJson(path.join(cwd, "package.json")));
+	if (!names.length) return;
+
+	run("npm", ["update", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", ...names], { cwd });
+	if (!git(cwd, ["status", "--porcelain", "--", "package-lock.json"])) return;
+	git(cwd, ["add", "--", "package-lock.json"]);
+	git(cwd, ["commit", "-q", "-m", "chore: first-party npm packages at their newest releases", "--", "package-lock.json"]);
+	console.log(`  ${node.slug}: package-lock.json moved to the newest first-party npm releases`);
+}
+
 async function releaseEntry(entry, composerIndex) {
 	const { node, version } = entry;
 	const tag = `v${version}`;
@@ -913,6 +942,7 @@ async function releaseEntry(entry, composerIndex) {
 		"--no-edit",
 		`origin/${node.releaseBranch}`,
 	]);
+	refreshFirstPartyNpm(node);
 	git(node.absolutePath, ["push", "origin", node.developmentBranch]);
 	git(node.absolutePath, [
 		"checkout",
