@@ -368,6 +368,19 @@ test("orchestrator does not contain Actions run polling commands", () => {
 		assert.equal(script.includes(value), false, value);
 });
 
+test("first-party npm packages are found in every dependency list, nothing else", async () => {
+	const { firstPartyNpmNames } = await import("./release.mjs");
+	assert.deepEqual(
+		firstPartyNpmNames({
+			dependencies: { "@siratik/ui-kit": "^0.1.0", classnames: "^2.0.0" },
+			devDependencies: { "@kitaris/admin": "^0.1.0", "@wordpress/scripts": "^30" },
+			peerDependencies: { "@builtnorth/x": "*" },
+		}),
+		["@siratik/ui-kit", "@kitaris/admin", "@builtnorth/x"],
+	);
+	assert.deepEqual(firstPartyNpmNames({}), []);
+});
+
 test("The Composer index wait uses the package's own Composer name", () => {
 	const dir = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR || "/tmp"), "composer-name-"));
 	try {
