@@ -504,6 +504,7 @@ function parseFlags(args) {
 		else if (value === "--version") flags.version = args[++index].replace(/^v/, "");
 		else if (value === "--force") flags.force = true;
 		else if (value === "--execute") flags.execute = true;
+		else if (value === "--list") flags.list = true;
 		else if (value === "--concurrency") {
 			flags.concurrency = Number.parseInt(args[++index], 10);
 			if (!Number.isInteger(flags.concurrency) || flags.concurrency < 1) {
@@ -982,7 +983,7 @@ function prepareRepositories(nodes, workspace) {
 	for (const node of nodes) {
 		node.absolutePath = path.join(workspace, node.slug);
 		if (!fs.existsSync(path.join(node.absolutePath, ".git"))) {
-			console.log(`Cloning ${node.repo}...`);
+			console.error(`Cloning ${node.repo}...`);
 			run("git", [
 				"clone",
 				"--filter=blob:none",
@@ -993,7 +994,7 @@ function prepareRepositories(nodes, workspace) {
 		}
 
 		const branches = [...new Set([node.developmentBranch, node.releaseBranch])];
-		console.log(`Refreshing ${node.slug} branches and tags...`);
+		console.error(`Refreshing ${node.slug} branches and tags...`);
 		git(node.absolutePath, [
 			"fetch",
 			"--prune",
@@ -1022,6 +1023,11 @@ async function main() {
 		targetVersion: flags.version,
 		force: flags.force,
 	});
+	// Just the planned slugs on stdout, blockers or not: `make release` prebuilds them.
+	if (flags.list) {
+		console.log(plan.releases.map((entry) => entry.node.slug).join(","));
+		return;
+	}
 	printPlan(plan);
 	if (plan.blockers.length) {
 		throw new Error("Release plan has dependency blockers.");
