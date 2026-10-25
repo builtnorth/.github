@@ -246,10 +246,11 @@ jobs:
                   # Determine which directories and files to include. Source
                   # (src/, theme-config/, scripts/, bin/, docs/) is never shipped,
                   # so PHP must not read files from those folders at runtime.
-                  # .claude/ and .cursor/ ship on purpose: themes are starters, and
-                  # these hold the skills and commands developers use with them.
+                  # .claude/, .cursor/ and .agents/ ship on purpose: themes are starters,
+                  # and these hold the skills and commands developers use with them
+                  # (.agents/skills/ is the tool-neutral Agent Skills folder).
                   INCLUDE_DIRS=""
-                  for dir in build parts patterns templates styles inc vendor assets languages design-skins fonts .claude .cursor; do
+                  for dir in build parts patterns templates styles inc vendor assets languages design-skins fonts .claude .cursor .agents; do
                       [ -d "$dir" ] && INCLUDE_DIRS="$INCLUDE_DIRS $dir"
                   done
 
