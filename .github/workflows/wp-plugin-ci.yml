@@ -17,7 +17,7 @@ on:
         description: 'WordPress versions to test against'
         required: false
         type: string
-        default: '["6.6", "latest"]'
+        default: '["7.0", "latest"]'
       node-version:
         description: 'Node version for building assets and E2E tooling'
         required: false

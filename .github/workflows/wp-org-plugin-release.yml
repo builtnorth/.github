@@ -29,7 +29,7 @@ on:
                 description: "WordPress versions to test against in the pre-release CI gate"
                 required: false
                 type: string
-                default: '["6.7", "latest"]'
+                default: '["7.0", "latest"]'
             run-wp-taint:
                 description: "Run wp-taint in the pre-release CI gate (plugin must ship wp-taint.toml)"
                 required: false
