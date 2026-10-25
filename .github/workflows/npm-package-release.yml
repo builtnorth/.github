@@ -225,7 +225,8 @@ jobs:
           if [ "${{ inputs.use-workspace }}" = "true" ]; then
             cd workspace-root/npm_packages/${{ steps.version.outputs.PACKAGE_NAME }}
           fi
-          npm run build
+          # Packages that ship source have no build script.
+          npm run build --if-present
 
       - name: Prepare release package
         run: |
@@ -238,14 +239,18 @@ jobs:
           mkdir -p release-package
 
           # Copy necessary files
-          cp -r build release-package/
+          if [ -d build ]; then
+            cp -r build release-package/
+          fi
           cp -r src release-package/ 2>/dev/null || true
           cp package.json release-package/
           cp README.md release-package/ || true
           cp LICENSE release-package/ || true
 
-          # Also ship whatever main, module and the exports map point at
-          # outside build/ and src/ (e.g. "./constants/*": "./constants/*.js").
+          # Also ship whatever main, module, the exports map and the files
+          # allowlist point at outside build/ and src/ (e.g. "./constants/*":
+          # "./constants/*.js", or a source package's "components" directory).
+          # Negated and glob entries in files are skipped; tests are removed below.
           node -e "
           const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
           const entries = new Set();
@@ -257,7 +262,7 @@ jobs:
               Object.values(value).forEach(walk);
             }
           };
-          [pkg.main, pkg.module, pkg.exports].forEach(walk);
+          [pkg.main, pkg.module, pkg.exports, pkg.files].forEach(walk);
           console.log([...entries].join('\n'));
           " | while read -r entry; do
             if [ -n "$entry" ] && [ -e "$entry" ] && [ ! -e "release-package/$entry" ]; then
