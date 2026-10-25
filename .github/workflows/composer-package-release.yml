@@ -180,8 +180,11 @@ jobs:
             - name: Clean composer.json for production
               if: hashFiles('composer.json') != '' && github.event_name != 'push'
               run: |
-                  # Remove @dev dependencies and path repositories for production release
-                  if [ -f composer.json ]; then
+                  # Remove @dev dependencies and path repositories for production release.
+                  # jq re-indents the whole file, and the release commits composer.json
+                  # to main, so only rewrite it when there is something to remove;
+                  # otherwise every release conflicts with dev's next composer.json edit.
+                  if [ -f composer.json ] && jq -e '([.repositories[]? | select(.type == "path")] | length > 0) or ([.require // {} | to_entries[] | select(.value == "@dev")] | length > 0)' composer.json > /dev/null; then
                     # Remove path-type repositories (only if repositories field exists)
                     jq 'if .repositories then del(.repositories[] | select(.type == "path")) else . end' composer.json > composer.tmp.json
                     mv composer.tmp.json composer.json
