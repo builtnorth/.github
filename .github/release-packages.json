@@ -191,7 +191,8 @@
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-blocks", "build", "*"]
+        ["wp-blocks", "build", "*"],
+        ["kitaris-dashboard", "release", "*"]
       ]
     },
     {
@@ -201,7 +202,8 @@
         ["kitaris", "composer", "^0.1"],
         ["kitaris", "build", "*"],
         ["wp-component-library", "npm", "^0.1.0"],
-        ["wp-component-library", "build", "*"]
+        ["wp-component-library", "build", "*"],
+        ["kitaris-dashboard", "release", "*"]
       ]
     },
     {
