@@ -255,7 +255,8 @@ jobs:
 
                   # Copy only the production files we need
                   cp -r $INCLUDE_DIRS *.php style.css composer.json composer.lock ${{ steps.version.outputs.THEME_NAME }}/ 2>/dev/null || true
-                  for file in theme.json screenshot.png README.md readme.txt LICENSE; do
+                  # CLAUDE.md, AGENTS.md and .cursorrules go with .claude/ and .cursor/.
+                  for file in theme.json screenshot.png README.md readme.txt LICENSE CLAUDE.md AGENTS.md .cursorrules; do
                       [ -f "$file" ] && cp "$file" ${{ steps.version.outputs.THEME_NAME }}/
                   done
 
