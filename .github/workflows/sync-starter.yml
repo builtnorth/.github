@@ -1,7 +1,7 @@
 name: Sync Starter
 
-# Rebuilds builtnorth/basecamp (the project starter) from basecamp-dev's starter/
-# folder. Manual only. basecamp is generated: never edit it directly.
+# Rebuilds builtnorth/basecamp (the project starter) from the starter/ folder on
+# basecamp-dev's main branch. Manual only. basecamp is generated: never edit it directly.
 #
 # 1. Build the starter tree with basecamp-dev's bin/build-starter.mjs.
 # 2. Smoke test a copy the way setup-bn-project would use it: Composer install
@@ -11,11 +11,6 @@ name: Sync Starter
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "basecamp-dev branch or commit to build from"
-        required: false
-        type: string
-        default: "dev"
       dry_run:
         description: "Build and smoke test only; do not push to basecamp"
         required: false
@@ -52,7 +47,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: builtnorth/basecamp-dev
-          ref: ${{ inputs.ref }}
+          ref: main
           token: ${{ secrets.ORG_REPO_TOKEN }}
           path: source
           submodules: false
