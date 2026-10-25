@@ -201,6 +201,20 @@ function dependencyCanUse(edge, dependencyVersion) {
 	return constraintAllows(edge.constraint, dependencyVersion);
 }
 
+/** Every package a node pulls in through Composer, directly or through other packages. */
+export function bundledPackages(node) {
+	const found = new Map();
+	const visit = (current) => {
+		for (const edge of current.dependencies) {
+			if (edge.kind !== "composer" || found.has(edge.node.slug)) continue;
+			found.set(edge.node.slug, edge.node);
+			visit(edge.node);
+		}
+	};
+	visit(node);
+	return [...found.values()];
+}
+
 function orderedSelection(nodes, selected) {
 	const output = [];
 	const visited = new Set();
@@ -266,6 +280,62 @@ export function buildPlan({
 		}
 	}
 
+	// Plugins and themes bundle vendor/, resolved when they release, so they must
+	// never ship an older first-party package than exists. Repeat until stable: each
+	// rule can select packages the other one then needs.
+	const nameOf = (node) =>
+		stateFor(node).composerName || node.composerName || `builtnorth/${node.slug}`;
+	const deployables = nodes.filter((node) => node.deployable);
+	for (let grew = true; grew; ) {
+		grew = false;
+
+		// Down: a plugin or theme releases after the unreleased packages it bundles.
+		for (const entry of [...selected.values()]) {
+			if (!entry.node.deployable) continue;
+			for (const dependency of bundledPackages(entry.node)) {
+				if (!selected.has(dependency.slug) && stateFor(dependency).changed) {
+					select(dependency, `bundled by ${entry.node.slug}, has unreleased commits`);
+					grew = true;
+				}
+			}
+		}
+
+		// Up: a plugin or theme releases again when a package it bundles is released
+		// in this plan, or (when it is a requested target) was released after the
+		// version its last release shipped.
+		for (const node of deployables) {
+			if (selected.has(node.slug)) continue;
+			const updates = [];
+			for (const dependency of bundledPackages(node)) {
+				const name = nameOf(dependency);
+				const shipped = stateFor(node).shipped?.[name];
+				const version = selected.get(dependency.slug)?.version || stateFor(dependency).latestVersion;
+				const direct = node.dependencies.find(
+					(edge) => edge.node === dependency && edge.kind === "composer",
+				);
+				// A version its own constraint excludes can't be picked up; the
+				// reverse-edge check below reports that as a blocker.
+				if (!version || (direct && !constraintAllows(direct.constraint, version))) continue;
+				if (selected.has(dependency.slug)) {
+					updates.push(`${name} ${shipped ? `${shipped} → ` : ""}${version} (this run)`);
+				} else if (!requestedSet.has(node.slug)) {
+					continue;
+				} else if (shipped && compareVersions(shipped, version) < 0) {
+					updates.push(`${name} ${shipped} → ${version}`);
+				} else if (
+					!shipped &&
+					stateFor(dependency).releasedAt > (stateFor(node).releasedAt || Infinity)
+				) {
+					updates.push(`${name} ${version} (released after this plugin's last release)`);
+				}
+			}
+			if (updates.length) {
+				select(node, `dependency update: ${updates.join(", ")}`);
+				grew = true;
+			}
+		}
+	}
+
 	for (const entry of selected.values()) {
 		for (const edge of entry.node.dependencies) {
 			const dependencyEntry = selected.get(edge.node.slug);
@@ -327,6 +397,30 @@ function refExists(cwd, ref) {
 	}
 }
 
+function readJsonAt(cwd, object) {
+	try {
+		return JSON.parse(git(cwd, ["show", object]));
+	} catch {
+		return null;
+	}
+}
+
+function lockedVersions(cwd, tag) {
+	const lock = readJsonAt(cwd, `${tag}:composer.lock`);
+	return Object.fromEntries(
+		(lock?.packages || []).map((item) => [item.name, String(item.version).replace(/^v/, "")]),
+	);
+}
+
+// A release stamps "version" into package.json; that alone changes no bundle.
+function onlyVersionChanged(cwd, range, file) {
+	const [from, to] = range.split("..");
+	return git(cwd, ["diff", "-U0", from, to, "--", file])
+		.split("\n")
+		.filter((line) => /^[+-]/.test(line) && !/^(?:\+\+\+|---)/.test(line))
+		.every((line) => /^[+-]\s*"version":/.test(line));
+}
+
 export function readRepositoryState(node) {
 	const ref = refExists(node.absolutePath, `origin/${node.developmentBranch}`)
 		? `origin/${node.developmentBranch}`
@@ -355,6 +449,11 @@ export function readRepositoryState(node) {
 	const bump = classifyCommits(messages);
 	const latestVersion = latestTag?.replace(/^v/, "") || "0.0.0";
 	return {
+		composerName: readJsonAt(node.absolutePath, `${ref}:composer.json`)?.name || null,
+		// Exact versions the last release bundled, read from the lock committed at its tag.
+		shipped: node.deployable && latestTag ? lockedVersions(node.absolutePath, latestTag) : {},
+		// Fallback for repos that don't commit composer.lock: when the last release was made.
+		releasedAt: latestTag ? Number(git(node.absolutePath, ["log", "-1", "--format=%ct", latestTag])) : 0,
 		changed: messages.length > 0,
 		latestTag,
 		latestVersion,
@@ -364,8 +463,8 @@ export function readRepositoryState(node) {
 		nextVersion: latestTag ? bumpVersion(latestVersion, bump) : "0.1.0",
 		buildChanged: changedFiles.some(
 			(file) =>
-				file === "package.json" ||
-				file === "package-lock.json" ||
+				((file === "package.json" || file === "package-lock.json") &&
+					!(latestTag && onlyVersionChanged(node.absolutePath, range, file))) ||
 				/^(?:src|assets)\/.*\.(?:js|jsx|ts|tsx|scss|css)$/.test(file),
 		),
 	};
@@ -721,13 +820,18 @@ export async function runInDependencyOrder(entries, task, { concurrency = 6 } = 
 	const start = (entry) => {
 		const slug = entry.node.slug;
 		if (done.has(slug)) return done.get(slug);
-		const dependencies = [
-			...new Set(
-				entry.node.dependencies
-					.map((edge) => edge.node.slug)
-					.filter((dep) => dep !== slug && planned.has(dep)),
-			),
-		];
+		// Wait on planned packages at any depth: a plugin that lists only kitaris
+		// still bundles job-dispatcher, and must not resolve it before it's indexed.
+		const reachable = new Set();
+		const walk = (node) => {
+			for (const edge of node.dependencies || []) {
+				if (reachable.has(edge.node.slug)) continue;
+				reachable.add(edge.node.slug);
+				walk(edge.node);
+			}
+		};
+		walk(entry.node);
+		const dependencies = [...reachable].filter((dep) => dep !== slug && planned.has(dep));
 		const promise = (async () => {
 			const results = await Promise.all(dependencies.map((dep) => start(planned.get(dep))));
 			if (results.some((ok) => !ok)) {
@@ -856,6 +960,18 @@ function releaseCandidates(nodes, targetSlugs) {
 		const target = nodes.find((node) => node.slug === slug);
 		if (!target) throw new Error(`Unknown release target: ${targetSlug}`);
 		addDependencies(target);
+	}
+
+	// buildPlan may add any plugin or theme that bundles a candidate, so read those too.
+	for (let grew = true; grew; ) {
+		grew = false;
+		for (const node of nodes) {
+			if (!node.deployable || selected.has(node.slug)) continue;
+			if (bundledPackages(node).some((dependency) => selected.has(dependency.slug))) {
+				addDependencies(node);
+				grew = true;
+			}
+		}
 	}
 
 	return nodes.filter((node) => selected.has(node.slug));
