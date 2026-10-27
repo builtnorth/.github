@@ -40,6 +40,24 @@ bash "$SCRIPT_DIR/configure-composer-vcs-repos.sh" "$PROFILE"
 # Extensions are the test jobs' concern; the PHP version still comes from config.platform.
 PLATFORM=(--ignore-platform-req='ext-*')
 
+# Private GitHub release zips (paid plugins) only download through the release asset API,
+# which builtnorth/composer-github-releases does inside Composer. Plugins stay off here,
+# so gh downloads them instead, into the cache entry a plain `composer install` looks for:
+# files/<package>/<sha1 of the dist URL>.<type>.
+seed_release_zips() {
+	local name url type owner repo tag file
+	while IFS=$'\t' read -r name url type; do
+		[[ "$url" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/releases/download/([^/?#]+)/([^/?#]+)$ ]] || continue
+		owner="${BASH_REMATCH[1]}"; repo="${BASH_REMATCH[2]}"
+		tag="$(printf '%b' "${BASH_REMATCH[3]//%/\\x}")"; file="$(printf '%b' "${BASH_REMATCH[4]//%/\\x}")"
+		[[ "$name" =~ ^[a-z0-9_.-]+/[a-z0-9_.-]+$ && "$type" =~ ^[a-z]+$ ]] || { echo "ERROR: bad package $name" >&2; exit 1; }
+		local dest="$COMPOSER_CACHE_DIR/files/$name/$(printf '%s' "$url" | shasum -a 1 | cut -d' ' -f1).$type"
+		[ -f "$dest" ] && continue
+		mkdir -p "$(dirname "$dest")"
+		GH_TOKEN="$TOKEN" gh release download "$tag" -R "$owner/$repo" -p "$file" -O "$dest" --clobber
+	done < <(jq -r '(.packages + (.["packages-dev"] // []))[] | select(.dist.url != null) | [.name, .dist.url, .dist.type] | @tsv' composer.lock)
+}
+
 if [ -n "$PHP_VERSIONS" ] && [ ! -f composer.lock ] \
 	&& [ -z "$(jq -r '.config.platform.php // empty' composer.json)" ]; then
 	# One lock per PHP version. composer.json is edited only in this throwaway checkout.
@@ -51,6 +69,7 @@ if [ -n "$PHP_VERSIONS" ] && [ ! -f composer.lock ] \
 		rm -f composer.lock
 		composer config platform.php "${PHP}.99"
 		composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
+		seed_release_zips
 		# Downloads every dist into the cache. vendor/ here is thrown away with the job.
 		composer install --prefer-dist --no-plugins --no-scripts --no-autoloader --no-progress "${PLATFORM[@]}"
 		cp composer.lock "$OUT/locks/${PHP}.lock"
@@ -62,6 +81,7 @@ else
 		composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
 	fi
 
+	seed_release_zips
 	# Downloads every dist into the cache. vendor/ here is thrown away with the job.
 	composer install --prefer-dist --no-plugins --no-scripts --no-autoloader --no-progress "${PLATFORM[@]}"
 

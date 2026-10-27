@@ -8,9 +8,10 @@ name: Sync Starter
 #    from the private registry, Compass (main) as the theme, npm install + build.
 # 3. Unless dry run: commit the tree on top of basecamp's history and push.
 #
-# The smoke test runs third-party code (npm packages, the build), so it runs in
-# its own job and its tree is thrown away. The publish job rebuilds the tree with
-# first-party code only and is the only job that can push.
+# Only first-party code runs next to the token: fetch gathers the private sources,
+# smoke runs the third-party code (Composer plugins, npm, the build) with no secrets
+# and its tree is thrown away, and publish rebuilds the tree with first-party code at
+# the fetched commit and is the only job that can push.
 
 on:
   workflow_dispatch:
@@ -29,10 +30,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  smoke:
-    name: Build and smoke test
+  # The only job besides publish that gets the token, and it runs first-party code only:
+  # checkout, the runner's own Node/PHP/Composer, our scripts (Composer plugins and scripts
+  # off), gh, upload. It hands smoke the starter tree, its lock and Composer cache (paid
+  # plugins' release zips included) and a Compass copy.
+  fetch:
+    name: Fetch private sources
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    permissions:
+      contents: read
     outputs:
       sha: ${{ steps.source.outputs.sha }}
 
@@ -46,6 +53,11 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout shared scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
       - name: Checkout basecamp-dev
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -57,56 +69,84 @@ jobs:
           persist-credentials: false
 
       # The publish job builds from this same commit, even if main moves on.
-      - name: Record the tested commit
+      - name: Record the commit
         id: source
         run: echo "sha=$(git -C source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # The runner's own Node (20+); build-starter.mjs only copies files.
+      - name: Build starter tree
+        run: node source/bin/build-starter.mjs "$RUNNER_TEMP/deps/starter"
+
+      - name: Fetch Composer dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+        run: |
+          cp -R "$RUNNER_TEMP/deps/starter" "$RUNNER_TEMP/fetch"
+          cd "$RUNNER_TEMP/fetch"
+          bash "$GITHUB_WORKSPACE/.github/scripts/fetch-private-deps.sh" "$RUNNER_TEMP/deps/composer"
+
+      # gh passes its credential helper to this one clone only; .git is removed.
+      - name: Fetch Compass
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
+        run: |
+          gh repo clone builtnorth/compass "$RUNNER_TEMP/deps/compass" -- --depth 1 --branch main
+          rm -rf "$RUNNER_TEMP/deps/compass/.git"
+
+      - name: Upload fetched sources
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: starter-sources
+          path: ${{ runner.temp }}/deps
+          include-hidden-files: true
+          retention-days: 5
+          overwrite: true
+
+  # No secrets: Composer plugins, npm packages and the theme build run here.
+  smoke:
+    name: Smoke test
+    needs: fetch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Download fetched sources
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: starter-sources
+          path: ${{ runner.temp }}/deps
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "24"
 
-      - name: Build starter tree
-        run: node source/bin/build-starter.mjs "$RUNNER_TEMP/smoke"
-
-      # Kitaris plugins are private release zips: the same global Composer plugin
-      # setup-bn-project installs in Lando downloads them.
-      # ORG_REPO_TOKEN for both hosts: github.com (release zips) and
-      # raw.githubusercontent.com (the private registry's packages.json).
+      # The way setup-bn-project uses the starter: Composer install, Compass as the theme.
       - name: Smoke test - Composer install
         env:
-          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"},"http-basic":{"raw.githubusercontent.com":{"username":"x-access-token","password":"${{ secrets.ORG_REPO_TOKEN }}"}}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/composer/cache
         run: |
-          composer global config repositories.builtnorth composer https://raw.githubusercontent.com/builtnorth/registry/main
-          composer global config allow-plugins.builtnorth/composer-github-releases true
-          composer global require --no-interaction builtnorth/composer-github-releases
+          cp -R "$RUNNER_TEMP/deps/starter" "$RUNNER_TEMP/smoke"
           cd "$RUNNER_TEMP/smoke"
+          cp "$RUNNER_TEMP/deps/composer/composer.lock" composer.lock
           composer install --no-interaction --no-progress
           for plugin in analytics backup blocks dashboard forms performance security seo; do
             test -f "wp-content/plugins/kitaris-$plugin/kitaris-$plugin.php" || { echo "::error::kitaris-$plugin did not install"; exit 1; }
           done
 
-      # gh passes its credential helper to this one clone only; .git is removed.
-      - name: Smoke test - fetch Compass
-        env:
-          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN }}
-        run: |
-          cd "$RUNNER_TEMP/smoke"
-          gh repo clone builtnorth/compass wp-content/themes/compass -- --depth 1 --branch main
-          rm -rf wp-content/themes/compass/.git
-
-      # No token here, and no install scripts.
       - name: Smoke test - theme build
         run: |
           cd "$RUNNER_TEMP/smoke"
+          cp -R "$RUNNER_TEMP/deps/compass" wp-content/themes/compass
           npm install --no-audit --no-fund --ignore-scripts
           npm run build
           test -d wp-content/themes/compass/build/assets || { echo "::error::Compass build/ is missing"; exit 1; }
 
   publish:
     name: ${{ inputs.dry_run && 'Show the starter diff' || 'Publish to basecamp' }}
-    needs: smoke
+    needs: [fetch, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -121,18 +161,13 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: builtnorth/basecamp-dev
-          ref: ${{ needs.smoke.outputs.sha }}
+          ref: ${{ needs.fetch.outputs.sha }}
           token: ${{ secrets.ORG_REPO_TOKEN }}
           path: source
           submodules: false
           persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: "24"
-
-      # First-party only: copies files, installs nothing.
+      # The runner's own Node (20+); first-party only: copies files, installs nothing.
       - name: Build starter tree
         run: node source/bin/build-starter.mjs "$RUNNER_TEMP/starter"
 

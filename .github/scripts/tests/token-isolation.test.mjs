@@ -14,7 +14,12 @@ const GITHUB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 const WORKFLOWS_DIR = path.join(GITHUB_DIR, "workflows");
 const SCRIPTS_DIR = path.join(GITHUB_DIR, "scripts");
 
-const ISOLATED = ["wp-plugin-ci.yml", "composer-package-ci.yml"];
+// Workflow → the jobs allowed to hold the token. Each of them is checked below.
+const ISOLATED = {
+	"wp-plugin-ci.yml": ["fetch"],
+	"composer-package-ci.yml": ["fetch"],
+	"sync-starter.yml": ["fetch", "publish"],
+};
 
 // Any way a job can receive the token: by name, all secrets at once, or passed down.
 const TOKEN = /ORG_REPO_TOKEN|WORKFLOW_TOKEN|toJSON\(\s*secrets\s*\)|secrets:\s*inherit/;
@@ -73,14 +78,14 @@ function assertNoThirdParty(text, where) {
 	}
 }
 
-for (const file of ISOLATED) {
+for (const [file, tokenJobNames] of Object.entries(ISOLATED)) {
 	const source = readFileSync(path.join(WORKFLOWS_DIR, file), "utf8");
 	const tokenJobs = jobs(source).filter((job) => TOKEN.test(job.body));
 
-	test(`${file}: only the fetch job holds the org token`, () => {
+	test(`${file}: only ${tokenJobNames.join(" and ")} hold the org token`, () => {
 		assert.deepEqual(
 			tokenJobs.map((job) => job.name),
-			["fetch"],
+			tokenJobNames,
 		);
 	});
 
@@ -97,9 +102,7 @@ for (const file of ISOLATED) {
 
 	test(`${file}: scripts the token job runs keep Composer plugins and scripts off`, () => {
 		for (const job of tokenJobs) {
-			const scripts = scriptsRun(job.body);
-			assert.ok(scripts.size > 0, "the token job runs our fetch script");
-			for (const name of scripts) {
+			for (const name of scriptsRun(job.body)) {
 				const body = code(readFileSync(path.join(SCRIPTS_DIR, name), "utf8"));
 				const where = `${name} (run by ${file} job "${job.name}")`;
 				assertNoThirdParty(body, where);
