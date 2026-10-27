@@ -50,7 +50,57 @@ on:
         required: false
 
 jobs:
+  # The only job that gets the org token, and it runs first-party code only: checkout,
+  # our scripts, the runner's own PHP and Composer (no plugins, no scripts), upload.
+  # The other jobs run third-party code (Composer plugins and scripts, test tools) and
+  # get the dependencies it fetched instead of the token.
+  fetch:
+    name: Fetch private dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          persist-credentials: false
+
+      # One lock per PHP version the jobs run on, as each would have resolved on its own.
+      - name: Fetch Composer dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          PROFILE: ${{ inputs.composer-repository-profile }}
+          PHP_VERSIONS_JSON: ${{ inputs.php-versions }}
+          COVERAGE_PHP: ${{ inputs.coverage-php-version }}
+        run: |
+          VERSIONS=$( { jq -r '.[]' <<< "$PHP_VERSIONS_JSON"; echo "$COVERAGE_PHP"; } | sort -uV | tr '\n' ' ')
+          bash _builtnorth-github/.github/scripts/fetch-private-deps.sh "$RUNNER_TEMP/deps" "$PROFILE" "$VERSIONS"
+
+      - name: Upload fetched dependencies
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deps-${{ inputs.package-name || github.event.repository.name }}
+          path: ${{ runner.temp }}/deps
+          # Long enough to re-run a failed job later. Artifacts of a public repo are
+          # public: a public caller must depend on public packages only.
+          retention-days: 5
+          overwrite: true
+
   test:
+    needs: fetch
     runs-on: ubuntu-latest
     
     strategy:
@@ -71,46 +121,30 @@ jobs:
           coverage: none
           tools: composer:v2
       
-      - name: Get composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-      
-      - name: Cache dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
-          restore-keys: ${{ runner.os }}-composer-
-      
       - name: Validate composer.json
         run: composer validate --no-check-lock
       
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
-          persist-credentials: false
-
-      - name: Configure private repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ inputs.package-name || github.event.repository.name }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
+          PHP_VERSION: ${{ matrix.php-version }}
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
+          # The committed lock, else the one resolved for this PHP version, else the shared one.
+          if [ ! -f composer.lock ]; then
+            if [ -f "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" ]; then
+              cp "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" composer.lock
+            else
+              cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+            fi
           fi
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Security check for vulnerabilities
         if: inputs.run-security-check
@@ -134,6 +168,7 @@ jobs:
     if: inputs.run-coverage
     name: Code Coverage
     runs-on: ubuntu-latest
+    needs: fetch
 
     steps:
       - name: Checkout code
@@ -146,32 +181,27 @@ jobs:
           coverage: xdebug
           tools: composer:v2
 
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
-          persist-credentials: false
-
-      - name: Configure private repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ inputs.package-name || github.event.repository.name }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
+          PHP_VERSION: ${{ inputs.coverage-php-version }}
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
+          # The committed lock, else the one resolved for this PHP version, else the shared one.
+          if [ ! -f composer.lock ]; then
+            if [ -f "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" ]; then
+              cp "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" composer.lock
+            else
+              cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+            fi
           fi
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run PHPUnit with coverage
         # Through the package's test script, so flags it needs (e.g. --prepend) apply.
@@ -187,6 +217,7 @@ jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    needs: fetch
 
     steps:
       - name: Checkout code
@@ -199,32 +230,27 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
-          persist-credentials: false
-
-      - name: Configure private repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ inputs.package-name || github.event.repository.name }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
+          PHP_VERSION: ${{ inputs.coverage-php-version }}
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
+          # The committed lock, else the one resolved for this PHP version, else the shared one.
+          if [ ! -f composer.lock ]; then
+            if [ -f "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" ]; then
+              cp "$RUNNER_TEMP/deps/locks/$PHP_VERSION.lock" composer.lock
+            else
+              cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+            fi
           fi
+          composer install --prefer-dist --no-progress --no-interaction
       
       - name: Run PHPCS coding standards check
         if: inputs.run-phpcs
@@ -237,13 +263,19 @@ jobs:
   test-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [test, coverage, code-quality]
+    needs: [fetch, test, coverage, code-quality]
     if: always()
     
     steps:
       - name: Check results
         run: |
           SUCCESS=true
+
+          # Every other job needs fetch: when it fails they are skipped, not passed.
+          if [ "${{ needs.fetch.result }}" != "success" ]; then
+            echo "❌ Fetch private dependencies: ${{ needs.fetch.result }}"
+            SUCCESS=false
+          fi
 
           if [ "${{ needs.test.result }}" != "success" ] && [ "${{ needs.test.result }}" != "skipped" ]; then
             echo "❌ Tests: ${{ needs.test.result }}"

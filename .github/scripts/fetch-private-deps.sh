@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Fetch a project's Composer dependencies with the org token, for jobs that get no token.
 #
-# Usage (from the project root): fetch-private-deps.sh <out-dir> [composer-repository-profile]
+# Usage (from the project root):
+#   fetch-private-deps.sh <out-dir> [composer-repository-profile] [php-versions]
 # Needs COMPOSER_AUTH with github-oauth.github.com set.
 #
 # The token may only sit in a job that runs first-party code: anything else in the job can
@@ -9,13 +10,17 @@
 # --no-plugins and --no-scripts, keeps Composer's home (where the token is written) out of
 # <out-dir>, and leaves in <out-dir> only:
 #   composer.lock   the committed lock, or one resolved here (config.platform.php applies)
+#   locks/<php>.lock  with [php-versions] (e.g. "8.1 8.4"), for a project that commits no lock
+#                   and pins no config.platform.php: one lock per PHP version, as each test
+#                   job would have resolved on its own PHP
 #   cache/files/    every dist, keyed as a plain `composer install` will look for it
-# A token-free job then copies the lock if it has none, points COMPOSER_CACHE_DIR at
+# A token-free job then copies its lock if it has none, points COMPOSER_CACHE_DIR at
 # <out-dir>/cache and runs a normal `composer install`, plugins and scripts included.
 set -euo pipefail
 
 OUT="${1:?usage: fetch-private-deps.sh <out-dir> [profile]}"
 PROFILE="${2:-from-composer}"
+PHP_VERSIONS="${3:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 TOKEN="$(printf '%s' "${COMPOSER_AUTH:-}" | jq -r '.["github-oauth"]["github.com"] // empty')"
@@ -35,14 +40,33 @@ bash "$SCRIPT_DIR/configure-composer-vcs-repos.sh" "$PROFILE"
 # Extensions are the test jobs' concern; the PHP version still comes from config.platform.
 PLATFORM=(--ignore-platform-req='ext-*')
 
-if [ ! -f composer.lock ]; then
-	composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
+if [ -n "$PHP_VERSIONS" ] && [ ! -f composer.lock ] \
+	&& [ -z "$(jq -r '.config.platform.php // empty' composer.json)" ]; then
+	# One lock per PHP version. composer.json is edited only in this throwaway checkout.
+	cp composer.json "$OUT/composer.json.orig"
+	mkdir -p "$OUT/locks"
+	for PHP in $PHP_VERSIONS; do
+		[[ "$PHP" =~ ^[0-9]+\.[0-9]+$ ]] || { echo "ERROR: bad PHP version '$PHP'." >&2; exit 1; }
+		cp "$OUT/composer.json.orig" composer.json
+		rm -f composer.lock
+		composer config platform.php "${PHP}.99"
+		composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
+		# Downloads every dist into the cache. vendor/ here is thrown away with the job.
+		composer install --prefer-dist --no-plugins --no-scripts --no-autoloader --no-progress "${PLATFORM[@]}"
+		cp composer.lock "$OUT/locks/${PHP}.lock"
+	done
+	mv "$OUT/composer.json.orig" composer.json
+	rm -f composer.lock
+else
+	if [ ! -f composer.lock ]; then
+		composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
+	fi
+
+	# Downloads every dist into the cache. vendor/ here is thrown away with the job.
+	composer install --prefer-dist --no-plugins --no-scripts --no-autoloader --no-progress "${PLATFORM[@]}"
+
+	cp composer.lock "$OUT/composer.lock"
 fi
-
-# Downloads every dist into the cache. vendor/ here is thrown away with the job.
-composer install --prefer-dist --no-plugins --no-scripts --no-autoloader --no-progress "${PLATFORM[@]}"
-
-cp composer.lock "$OUT/composer.lock"
 # Only the dist files: repo/ and vcs/ can hold authenticated URLs.
 find "$COMPOSER_CACHE_DIR" -mindepth 1 -maxdepth 1 ! -name files -exec rm -rf {} +
 
@@ -53,4 +77,5 @@ if grep -rqF -e "$TOKEN" -e "$BASIC" "$OUT"; then
 	exit 1
 fi
 
-echo "Fetched: $(find "$OUT/cache/files" -type f 2>/dev/null | wc -l | tr -d ' ') dist files, composer.lock"
+echo "Fetched: $(find "$OUT/cache/files" -type f 2>/dev/null | wc -l | tr -d ' ') dist files;" \
+	"locks: $(cd "$OUT" && find . -name '*.lock' | sort | tr '\n' ' ')"
