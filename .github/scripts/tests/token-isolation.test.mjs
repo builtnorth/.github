@@ -18,6 +18,7 @@ const SCRIPTS_DIR = path.join(GITHUB_DIR, "scripts");
 const ISOLATED = {
 	"wp-plugin-ci.yml": ["fetch"],
 	"composer-package-ci.yml": ["fetch"],
+	"npm-package-ci.yml": ["fetch"],
 	"sync-starter.yml": ["fetch", "publish"],
 };
 
