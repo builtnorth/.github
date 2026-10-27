@@ -14,7 +14,7 @@ const GITHUB_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 const WORKFLOWS_DIR = path.join(GITHUB_DIR, "workflows");
 const SCRIPTS_DIR = path.join(GITHUB_DIR, "scripts");
 
-const ISOLATED = ["wp-plugin-ci.yml"];
+const ISOLATED = ["wp-plugin-ci.yml", "composer-package-ci.yml"];
 
 // Any way a job can receive the token: by name, all secrets at once, or passed down.
 const TOKEN = /ORG_REPO_TOKEN|WORKFLOW_TOKEN|toJSON\(\s*secrets\s*\)|secrets:\s*inherit/;
