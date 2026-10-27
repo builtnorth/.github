@@ -95,6 +95,7 @@ jobs:
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
           token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Configure private repositories
         env:
@@ -155,6 +156,7 @@ jobs:
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
           token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Configure private repositories
         env:
@@ -207,6 +209,7 @@ jobs:
           sparse-checkout-cone-mode: false
           path: _builtnorth-github
           token: ${{ secrets.ORG_REPO_TOKEN || secrets.WORKFLOW_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Configure private repositories
         env:

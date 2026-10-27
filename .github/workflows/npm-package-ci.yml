@@ -80,6 +80,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -88,6 +89,7 @@ jobs:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -129,6 +131,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -137,6 +140,7 @@ jobs:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -178,6 +182,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -186,6 +191,7 @@ jobs:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup workspace
         if: inputs.use-workspace
@@ -227,6 +233,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Checkout parent repository for workspace
         if: inputs.use-workspace
@@ -235,6 +242,7 @@ jobs:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup workspace
         if: inputs.use-workspace
