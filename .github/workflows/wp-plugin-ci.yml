@@ -119,9 +119,13 @@ jobs:
           token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
           persist-credentials: false
 
+      # Tests run against the first-party versions the release will ship, not the
+      # committed lock's: a plugin using a framework API released today would pass
+      # locally (root autoloader) and fail here on a stale lock otherwise.
       - name: Fetch Composer dependencies
         env:
           COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          REFRESH_FIRST_PARTY: '1'
         run: bash _builtnorth-github/.github/scripts/fetch-private-deps.sh "$RUNNER_TEMP/deps" "${{ inputs.composer-repository-profile }}"
 
       # Sibling plugins' latest release zips, for wp-env (extra-plugins, e2e-plugins).
@@ -207,7 +211,7 @@ jobs:
         env:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
           composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install and start wp-env
@@ -297,7 +301,7 @@ jobs:
         env:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
           composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run PHPCS
@@ -337,7 +341,7 @@ jobs:
         env:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
           composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run PHP Compatibility check
@@ -373,7 +377,7 @@ jobs:
         env:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
           composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run security check for PHP dependencies
@@ -464,7 +468,7 @@ jobs:
         env:
           COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
           composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install Playwright tooling
