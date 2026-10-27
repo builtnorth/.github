@@ -9,7 +9,9 @@
 # read it (runner memory, ~/.config/composer/auth.json). So this runs Composer with
 # --no-plugins and --no-scripts, keeps Composer's home (where the token is written) out of
 # <out-dir>, and leaves in <out-dir> only:
-#   composer.lock   the committed lock, or one resolved here (config.platform.php applies)
+#   composer.lock   the committed lock, or one resolved here (config.platform.php applies);
+#                   with REFRESH_FIRST_PARTY=1, the committed lock with builtnorth/*,
+#                   kitaris/* and siratik/* updated to their newest allowed releases
 #   locks/<php>.lock  with [php-versions] (e.g. "8.1 8.4"), for a project that commits no lock
 #                   and pins no config.platform.php: one lock per PHP version, as each test
 #                   job would have resolved on its own PHP
@@ -79,6 +81,11 @@ if [ -n "$PHP_VERSIONS" ] && [ ! -f composer.lock ] \
 else
 	if [ ! -f composer.lock ]; then
 		composer update --no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
+	elif [ "${REFRESH_FIRST_PARTY:-}" = "1" ]; then
+		# The release resolves the newest first-party versions before it builds the zip,
+		# so tests get the same versions instead of the lock's older ones.
+		composer update 'builtnorth/*' 'kitaris/*' 'siratik/*' --with-dependencies \
+			--no-install --no-plugins --no-scripts --no-progress "${PLATFORM[@]}"
 	fi
 
 	seed_release_zips
