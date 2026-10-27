@@ -116,7 +116,7 @@ jobs:
 
                   # Update version in package.json if it exists
                   if [ -f package.json ]; then
-                      npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+                      npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version --ignore-scripts
                   fi
 
             - name: Setup PHP
@@ -124,17 +124,6 @@ jobs:
               with:
                   php-version: "8.2"
                   tools: composer:v2
-
-            - name: Get Composer cache directory
-              id: composer-cache
-              run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-            - name: Cache Composer packages
-              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-              with:
-                  path: ${{ steps.composer-cache.outputs.dir }}
-                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
-                  restore-keys: ${{ runner.os }}-composer-
 
             - name: Configure Composer for private repos
               env:

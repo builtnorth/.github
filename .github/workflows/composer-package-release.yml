@@ -166,17 +166,6 @@ jobs:
                   php-version: "8.2"
                   tools: composer:v2
 
-            - name: Get Composer cache directory
-              id: composer-cache
-              run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-            - name: Cache Composer packages
-              uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-              with:
-                  path: ${{ steps.composer-cache.outputs.dir }}
-                  key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
-                  restore-keys: ${{ runner.os }}-composer-
-
             - name: Clean composer.json for production
               if: hashFiles('composer.json') != '' && github.event_name != 'push'
               run: |
@@ -270,7 +259,7 @@ jobs:
             - name: Update package.json version
               if: hashFiles('package.json') != '' && github.event_name != 'push'
               run: |
-                  npm version ${{ steps.version.outputs.version_number }} --no-git-tag-version --allow-same-version
+                  npm version ${{ steps.version.outputs.version_number }} --no-git-tag-version --allow-same-version --ignore-scripts
 
             - name: Commit finalized manifests and lock
               if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.version != 'ci-only'
@@ -460,22 +449,19 @@ jobs:
                   } > "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.manifest.txt"
                   sha256sum "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip" > "${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip.sha256"
 
+            # gh, not a third-party release action: the step holds a write token.
             - name: Create GitHub Release
               if: inputs.version != 'ci-only'
-              uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-              with:
-                  tag_name: ${{ steps.version.outputs.version }}
-                  name: ${{ steps.version.outputs.version }}
-                  body_path: release_notes.md
-                  draft: false
-                  prerelease: ${{ inputs.prerelease }}
-                  generate_release_notes: false
-                  files: |
-                      ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip
-                      ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.manifest.txt
-                      ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}.zip.sha256
               env:
-                  GITHUB_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
+                  GH_TOKEN: ${{ secrets.WORKFLOW_TOKEN || github.token }}
+                  TAG: ${{ steps.version.outputs.version }}
+                  FILE_BASE: ${{ env.PACKAGE_NAME }}-${{ steps.version.outputs.version_number }}
+                  PRERELEASE: ${{ inputs.prerelease }}
+              run: |
+                  args=(--repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file release_notes.md --verify-tag)
+                  [ "$PRERELEASE" = "true" ] && args+=(--prerelease)
+                  gh release create "$TAG" "${args[@]}" \
+                    "$FILE_BASE.zip" "$FILE_BASE.manifest.txt" "$FILE_BASE.zip.sha256"
 
             # The index is keyed by the package's own Composer name (siratik/utility),
             # which can differ from builtnorth/<repo>; composer.json is the source of
