@@ -91,6 +91,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The only job that gets ORG_REPO_TOKEN, and it runs first-party code only: checkout,
+  # our scripts, the runner's own PHP and Composer (no plugins, no scripts), gh, upload.
+  # Every other job runs third-party code (Composer plugins, npm, wp-env, test tools)
+  # and gets the dependencies it fetched instead of the token.
+  fetch:
+    name: Fetch private dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout shared Composer scripts
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: builtnorth/.github
+          ref: main
+          sparse-checkout: |
+            .github/scripts
+          sparse-checkout-cone-mode: false
+          path: _builtnorth-github
+          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Fetch Composer dependencies
+        env:
+          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+        run: bash _builtnorth-github/.github/scripts/fetch-private-deps.sh "$RUNNER_TEMP/deps" "${{ inputs.composer-repository-profile }}"
+
+      # Sibling plugins' latest release zips, for wp-env (extra-plugins, e2e-plugins).
+      - name: Fetch sibling plugin zips
+        if: inputs.extra-plugins != '' || inputs.e2e-plugins != ''
+        env:
+          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          SIBLINGS: ${{ inputs.extra-plugins }} ${{ inputs.e2e-plugins }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/deps/plugins"
+          for EXTRA in $SIBLINGS; do
+            [[ "$EXTRA" =~ ^[a-z0-9-]+$ ]] || { echo "::error::Bad plugin name: $EXTRA"; exit 1; }
+            [ -f "$RUNNER_TEMP/deps/plugins/${EXTRA}.zip" ] && continue
+            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$RUNNER_TEMP/deps/plugins" --clobber
+          done
+
+      - name: Upload fetched dependencies
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
+          # Long enough to re-run a failed job later. Artifacts of a public repo are
+          # public: a public caller must depend on public packages only.
+          retention-days: 5
+          overwrite: true
+
   php-lint:
     name: PHP Lint
     runs-on: ubuntu-latest
@@ -115,7 +172,7 @@ jobs:
     if: inputs.run-unit-tests
     name: PHP Tests
     runs-on: ubuntu-latest
-    needs: php-lint
+    needs: [php-lint, fetch]
     strategy:
       fail-fast: false
       matrix:
@@ -139,46 +196,21 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Get composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache composer dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-
-      - name: Configure Composer VCS repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
-          fi
+          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install and start wp-env
-        env:
-          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
         run: |
           # Install wp-env in its own folder: installing it in the plugin root
           # would also resolve the plugin's own npm dependencies, and those
@@ -197,13 +229,12 @@ jobs:
             CORE="\"WordPress/WordPress#${WP_VER}\""
           fi
           # Sibling plugins some tests need (e.g. kitaris-forms), from each
-          # repo's latest release zip, mapped next to this plugin.
+          # repo's latest release zip (fetched), mapped next to this plugin.
           MAPPINGS="{}"
           for EXTRA in ${{ inputs.extra-plugins }}; do
             EXTRA_DIR="$RUNNER_TEMP/extra-plugins"
             mkdir -p "$EXTRA_DIR"
-            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$EXTRA_DIR" --clobber
-            unzip -q -o "$EXTRA_DIR/${EXTRA}.zip" -d "$EXTRA_DIR"
+            unzip -q -o "$RUNNER_TEMP/deps/plugins/${EXTRA}.zip" -d "$EXTRA_DIR"
             MAPPINGS=$(jq -c --arg k "wp-content/plugins/${EXTRA}" --arg v "$EXTRA_DIR/${EXTRA}" '. + {($k): $v}' <<< "$MAPPINGS")
           done
 
@@ -242,7 +273,7 @@ jobs:
     if: inputs.run-phpcs
     name: PHP Coding Standards
     runs-on: ubuntu-latest
-    needs: php-lint
+    needs: [php-lint, fetch]
 
     steps:
       - name: Checkout code
@@ -255,42 +286,19 @@ jobs:
           coverage: none
           tools: composer:v2, cs2pr
 
-      - name: Get composer cache directory
-        id: composer-cache
-        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
-
-      - name: Cache composer dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: ${{ runner.os }}-composer-
-
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-
-      - name: Configure Composer VCS repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
-          fi
+          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run PHPCS
         run: |
@@ -305,7 +313,7 @@ jobs:
     if: inputs.run-php-compatibility
     name: PHP Compatibility Check
     runs-on: ubuntu-latest
-    needs: php-lint
+    needs: [php-lint, fetch]
 
     steps:
       - name: Checkout code
@@ -318,31 +326,19 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-
-      - name: Configure Composer VCS repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
-          fi
+          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run PHP Compatibility check
         run: |
@@ -353,6 +349,7 @@ jobs:
     if: inputs.run-security-check
     name: Security Check
     runs-on: ubuntu-latest
+    needs: fetch
 
     steps:
       - name: Checkout code
@@ -365,35 +362,21 @@ jobs:
           coverage: none
           tools: composer:v2
 
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-
-      - name: Configure Composer VCS repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
-          fi
+          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Run security check for PHP dependencies
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
         # composer audit checks every locked package against the advisory
         # database. roave/security-advisories is not installed: it now
         # conflicts with every PHP 8.1 release, so it cannot resolve on 8.1.
@@ -451,7 +434,7 @@ jobs:
     name: E2E Playwright
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: php-lint
+    needs: [php-lint, fetch]
 
     steps:
       - name: Checkout code
@@ -470,31 +453,19 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      - name: Checkout shared Composer scripts
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Private packages come from the fetch job; this job has no token.
+      - name: Download fetched dependencies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          repository: builtnorth/.github
-          ref: main
-          sparse-checkout: |
-            .github/scripts
-          sparse-checkout-cone-mode: false
-          path: _builtnorth-github
-          token: ${{ secrets.ORG_REPO_TOKEN || secrets.GITHUB_TOKEN || github.token }}
-
-      - name: Configure Composer VCS repositories
-        env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
-        run: bash _builtnorth-github/.github/scripts/configure-composer-vcs-repos.sh "${{ inputs.composer-repository-profile }}"
+          name: deps-${{ env.PLUGIN_SLUG }}
+          path: ${{ runner.temp }}/deps
 
       - name: Install Composer dependencies
         env:
-          COMPOSER_AUTH: '{"github-oauth":{"github.com":"${{ secrets.ORG_REPO_TOKEN }}"}}'
+          COMPOSER_CACHE_DIR: ${{ runner.temp }}/deps/cache
         run: |
-          if [ -f composer.lock ]; then
-            composer install --prefer-dist --no-progress --no-interaction
-          else
-            composer update --prefer-dist --no-progress --no-interaction
-          fi
+          [ -f composer.lock ] || cp "$RUNNER_TEMP/deps/composer.lock" composer.lock
+          composer install --prefer-dist --no-progress --no-interaction
 
       - name: Install Playwright tooling
         run: |
@@ -509,17 +480,14 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Start wp-env
-        env:
-          GH_TOKEN: ${{ secrets.ORG_REPO_TOKEN || github.token }}
         run: |
           # This plugin plus any e2e-plugins, each from its latest release
-          # zip; wp-env activates every entry in "plugins".
+          # zip (fetched); wp-env activates every entry in "plugins".
           PLUGINS='["."]'
           for EXTRA in ${{ inputs.e2e-plugins }}; do
             EXTRA_DIR="$RUNNER_TEMP/e2e-plugins"
             mkdir -p "$EXTRA_DIR"
-            gh release download -R "builtnorth/${EXTRA}" -p "${EXTRA}.zip" -D "$EXTRA_DIR" --clobber
-            unzip -q -o "$EXTRA_DIR/${EXTRA}.zip" -d "$EXTRA_DIR"
+            unzip -q -o "$RUNNER_TEMP/deps/plugins/${EXTRA}.zip" -d "$EXTRA_DIR"
             PLUGINS=$(jq -c --arg p "$EXTRA_DIR/${EXTRA}" '. + [$p]' <<< "$PLUGINS")
           done
           jq -n --argjson plugins "$PLUGINS" '{phpVersion: "8.2", core: null, plugins: $plugins}' > .wp-env.override.json

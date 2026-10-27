@@ -196,6 +196,7 @@ jobs:
           repository: ${{ github.repository_owner }}/basecamp-dev
           path: workspace-root
           token: ${{ secrets.ORG_REPO_TOKEN || github.token }}
+          persist-credentials: false
 
       - name: Setup workspace and install dependencies
         if: inputs.use-workspace

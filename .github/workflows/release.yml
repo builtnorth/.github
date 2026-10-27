@@ -67,6 +67,9 @@ jobs:
       - name: Test Composer index script
         run: bash .github/scripts/tests/update-composer-index.test.sh
 
+      - name: Test org token isolation
+        run: node --test .github/scripts/tests/token-isolation.test.mjs
+
       # The runner's preinstalled PHP has sodium; no setup action, since this job's env holds the org token.
       - name: Test release signing script
         run: bash .github/scripts/tests/sign-release.test.sh
