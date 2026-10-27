@@ -159,7 +159,7 @@ jobs:
 
       - name: Finalize source package version
         if: github.event_name != 'push'
-        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
+        run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version --ignore-scripts
 
       - name: Verify tagged source version
         if: github.event_name == 'push'
