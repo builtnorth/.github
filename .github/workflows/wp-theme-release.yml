@@ -239,7 +239,7 @@ jobs:
                   # and these hold the skills and commands developers use with them
                   # (.agents/skills/ is the tool-neutral Agent Skills folder).
                   INCLUDE_DIRS=""
-                  for dir in build parts patterns templates styles inc vendor assets languages design-skins fonts .claude .cursor .agents; do
+                  for dir in build parts patterns pattern-archive site-starter templates styles inc vendor assets languages design-skins fonts .claude .cursor .agents; do
                       [ -d "$dir" ] && INCLUDE_DIRS="$INCLUDE_DIRS $dir"
                   done
 
