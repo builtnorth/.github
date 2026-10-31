@@ -97,6 +97,17 @@
       ]
     },
     {
+      "slug": "kitaris-module-site-starter",
+      "type": "composer",
+      "dependencies": [
+        ["kitaris", "composer", "^0.1"],
+        ["theme-skin-switcher", "composer", "*"],
+        ["abilities", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"],
+        ["rest-access", "composer", "^0.1"]
+      ]
+    },
+    {
       "slug": "job-dispatcher",
       "type": "composer",
       "dependencies": [
@@ -340,7 +351,8 @@
       "type": "theme",
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
-        ["theme-skin-switcher", "composer", "*"]
+        ["theme-skin-switcher", "composer", "*"],
+        ["kitaris-module-site-starter", "composer", "*"]
       ]
     },
     {
