@@ -168,6 +168,14 @@
       ]
     },
     {
+      "slug": "kitaris-module-waas-gateway",
+      "type": "composer",
+      "dependencies": [
+        ["kitaris", "composer", "^0.1"],
+        ["package-loader", "composer", "^0.1"]
+      ]
+    },
+    {
       "slug": "kitaris",
       "type": "composer",
       "dependencies": [
@@ -352,7 +360,8 @@
       "dependencies": [
         ["kitaris", "composer", "^0.1"],
         ["theme-skin-switcher", "composer", "*"],
-        ["kitaris-module-site-starter", "composer", "*"]
+        ["kitaris-module-site-starter", "composer", "*"],
+        ["kitaris-module-waas-gateway", "composer", "*"]
       ]
     },
     {
