@@ -12,7 +12,7 @@
 #   composer.lock   the committed lock, or one resolved here (config.platform.php applies);
 #                   with REFRESH_FIRST_PARTY=1, the committed lock with builtnorth/*,
 #                   kitaris/* and siratik/* updated to their newest allowed releases
-#   locks/<php>.lock  with [php-versions] (e.g. "8.2 8.4"), for a project that commits no lock
+#   locks/<php>.lock  with [php-versions] (e.g. "8.1 8.4"), for a project that commits no lock
 #                   and pins no config.platform.php: one lock per PHP version, as each test
 #                   job would have resolved on its own PHP
 #   cache/files/    every dist, keyed as a plain `composer install` will look for it
