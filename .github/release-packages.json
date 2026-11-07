@@ -352,7 +352,12 @@
     {
       "slug": "waas-core",
       "type": "plugin",
-      "dependencies": [["kitaris", "composer", "^0.1"]]
+      "dependencies": [
+        ["kitaris", "composer", "^0.1"],
+        ["theme-skin-switcher", "composer", "*"],
+        ["kitaris-module-site-starter", "composer", "*"],
+        ["kitaris-module-waas-gateway", "composer", "*"]
+      ]
     },
     {
       "slug": "compass",
@@ -363,10 +368,7 @@
       "slug": "compass-waas",
       "type": "theme",
       "dependencies": [
-        ["kitaris", "composer", "^0.1"],
-        ["theme-skin-switcher", "composer", "*"],
-        ["kitaris-module-site-starter", "composer", "*"],
-        ["kitaris-module-waas-gateway", "composer", "*"]
+        ["kitaris", "composer", "^0.1"]
       ]
     },
     {
