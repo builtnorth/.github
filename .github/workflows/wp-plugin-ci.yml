@@ -12,7 +12,7 @@ on:
         description: 'PHP versions to test against'
         required: false
         type: string
-        default: '["8.1", "8.2", "8.3", "8.4"]'
+        default: '["8.2", "8.3", "8.4"]'
       wordpress-versions:
         description: 'WordPress versions to test against'
         required: false
@@ -60,7 +60,7 @@ on:
         type: boolean
         default: false
       run-wp-taint:
-        description: 'Run wp-taint (plugin must ship wp-taint.toml; PHP 8.3 scanner job, plugin runtime stays 8.1)'
+        description: 'Run wp-taint (plugin must ship wp-taint.toml; PHP 8.3 scanner job, plugin runtime stays 8.2)'
         required: false
         type: boolean
         default: false
@@ -266,7 +266,7 @@ jobs:
           done
 
       - name: Upload coverage to Codecov
-        if: matrix.php-version == '8.1' && matrix.wordpress-version == 'latest'
+        if: matrix.php-version == '8.2' && matrix.wordpress-version == 'latest'
         uses: codecov/codecov-action@ab904c41d6ece82784817410c45d8b8c02684457 # v3
         with:
           file: ./coverage.xml
@@ -286,7 +286,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           coverage: none
           tools: composer:v2, cs2pr
 
@@ -326,7 +326,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           coverage: none
           tools: composer:v2
 
@@ -346,8 +346,8 @@ jobs:
 
       - name: Run PHP Compatibility check
         run: |
-          # Check PHP compatibility with PHP 8.1+
-          vendor/bin/phpcs . --standard=PHPCompatibility --extensions=php --runtime-set testVersion 8.1- --ignore=vendor/,node_modules/,build/
+          # Check PHP compatibility with PHP 8.2+
+          vendor/bin/phpcs . --standard=PHPCompatibility --extensions=php --runtime-set testVersion 8.2- --ignore=vendor/,node_modules/,build/
 
   security-check:
     if: inputs.run-security-check
@@ -362,7 +362,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: "8.1"
+          php-version: "8.2"
           coverage: none
           tools: composer:v2
 
