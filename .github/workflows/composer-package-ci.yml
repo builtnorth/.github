@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: '["8.1", "8.2", "8.3", "8.4"]'
+      run-tests:
+        description: 'Run the PHPUnit suite (off only for a suite that needs more than CI has, e.g. a WordPress test database)'
+        required: false
+        type: boolean
+        default: true
       run-coverage:
         description: 'Run code coverage'
         required: false
@@ -162,6 +167,7 @@ jobs:
           composer audit --no-dev --locked --abandoned=report
 
       - name: Run PHPUnit tests
+        if: inputs.run-tests
         run: composer test
 
   coverage:

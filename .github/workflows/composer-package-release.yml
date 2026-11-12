@@ -38,6 +38,11 @@ on:
                 required: false
                 type: boolean
                 default: true
+            run-tests:
+                description: "Run the PHPUnit suite during release CI"
+                required: false
+                type: boolean
+                default: true
             run-coverage:
                 description: "Run code coverage during release CI"
                 required: false
@@ -99,6 +104,7 @@ jobs:
         uses: builtnorth/.github/.github/workflows/composer-package-ci.yml@main
         with:
             composer-repository-profile: ${{ inputs.composer-repository-profile }}
+            run-tests: ${{ inputs.run-tests }}
             run-coverage: ${{ inputs.run-coverage }}
             run-phpcs: ${{ inputs.run-phpcs }}
             run-phpcompat: ${{ inputs.run-phpcompat }}
