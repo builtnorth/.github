@@ -266,7 +266,7 @@ jobs:
 
             - name: Verify committed production artifacts
               run: |
-                  if [ -d build ] && grep -RIl --include='*.js' --fixed-strings '// webpackBootstrap' build/; then
+                  if [ -d build ] && grep -RIlE --include='*.js' -e '// webpackBootstrap' -e '^/\*\*\*/ "\.\.?/' build/; then
                     echo "::error::Committed build/ contains development webpack bundles. Run the local release prebuild, commit its production output, and retry."
                     exit 1
                   fi
